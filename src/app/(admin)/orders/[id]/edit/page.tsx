@@ -1,0 +1,707 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { useRouter, useParams } from "next/navigation";
+import { SIZE_MULTIPLIERS } from "@/lib/constants/bakery";
+import { ArrowLeft, Plus, Trash2, Save, Calculator, Calendar, User, MapPin } from "lucide-react";
+
+export default function EditOrderPage() {
+    const router = useRouter();
+    const { id } = useParams();
+    const [loading, setLoading] = useState(true);
+
+    // Data Sources
+    const [recipes, setRecipes] = useState<any[]>([]);
+    const [fillings, setFillings] = useState<any[]>([]);
+
+    // Order Details
+    const [customerName, setCustomerName] = useState("");
+    const [customerPhone, setCustomerPhone] = useState("");
+    const [deliveryDate, setDeliveryDate] = useState("");
+    const [deliveryAddress, setDeliveryAddress] = useState("");
+    const [notes, setNotes] = useState("");
+
+    // Order Items (The Cakes)
+    const [items, setItems] = useState<any[]>([]);
+
+    // Financials
+    const [extras, setExtras] = useState<any[]>([]); // { name, cost, price }
+    const [extraName, setExtraName] = useState("");
+    const [extraCost, setExtraCost] = useState(0);
+    const [extraPrice, setExtraPrice] = useState(0);
+    const [amountPaid, setAmountPaid] = useState(0);
+    const [discountValue, setDiscountValue] = useState(0);
+    const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
+    const [vatType, setVatType] = useState<'none' | 'inclusive' | 'exclusive'>('none');
+    const [vatRate, setVatRate] = useState(7.5);
+    const [allowTip, setAllowTip] = useState(false);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            const { data: r } = await supabase.from("recipes").select("*");
+            const { data: f } = await supabase.from("fillings").select("*");
+            if (r) setRecipes(r);
+            if (f) setFillings(f);
+
+            if (id) fetchOrder();
+        };
+        fetchData();
+    }, [id]);
+
+    const fetchOrder = async () => {
+        const { data: order, error } = await supabase
+            .from("orders")
+            .select(`
+                *,
+                order_items (*)
+            `)
+            .eq("id", id)
+            .single();
+
+        if (error || !order) {
+            alert("Order not found");
+            router.push("/orders");
+            return;
+        }
+
+        // Populate State
+        setCustomerName(order.customer_name);
+        setCustomerPhone(order.customer_phone || "");
+        setDeliveryDate(order.delivery_date ? new Date(order.delivery_date).toISOString().slice(0, 16) : "");
+
+        // Parse Notes & Address
+        if (order.notes && order.notes.includes("Address:")) {
+            const parts = order.notes.split("Address:");
+            setNotes(parts[0].trim());
+            setDeliveryAddress(parts[1].trim());
+        } else {
+            setNotes(order.notes || "");
+        }
+
+        setAmountPaid(order.amount_paid || 0);
+        setDiscountValue(order.discount || 0);
+        setDiscountType('fixed'); // Default to fixed for now as we store value
+        setVatType(order.vat_type || 'none');
+        // We don't store vatRate, so assume default or calculate? 
+        // For now, keep default 7.5. If vat > 0, we could reverse calc but let's keep simple.
+
+        // Items
+        const loadedItems = order.order_items.map((item: any) => ({
+            id: item.id, // Keep ID for updates
+            recipe_id: item.recipe_id,
+            filling_id: item.filling_id || "",
+            size: item.size_inches,
+            layers: item.layers,
+            qty: item.quantity,
+            price: item.item_price,
+            cost: 0 // We'll recalculate cost
+        }));
+        setItems(loadedItems);
+
+        // Extras (Attached to first item usually)
+        if (order.order_items.length > 0 && order.order_items[0].custom_extras) {
+            setExtras(order.order_items[0].custom_extras);
+        }
+
+        // Recalculate costs for loaded items
+        loadedItems.forEach((item: any, idx: number) => {
+            calculateItemCost(idx, item.recipe_id, item.filling_id, item.size, item.layers, true);
+        });
+
+        setLoading(false);
+    };
+
+    // --- LOGIC: Calculate Estimated Cost for an Item ---
+    const calculateItemCost = async (index: number, recipeId: string, fillingId: string, size: number, layers: number, skipPriceUpdate = false) => {
+        if (!recipeId) return 0;
+
+        // 1. Fetch Recipe Ingredients Cost
+        const { data: recipeData } = await supabase
+            .from("recipe_ingredients")
+            .select(`amount_grams_ml, ingredients(purchase_price, purchase_quantity)`)
+            .eq("recipe_id", recipeId);
+
+        let baseCost = 0;
+        if (recipeData) {
+            baseCost = recipeData.reduce((acc: number, curr: any) => {
+                const pricePerUnit = curr.ingredients.purchase_price / curr.ingredients.purchase_quantity;
+                return acc + (curr.amount_grams_ml * pricePerUnit);
+            }, 0);
+        }
+
+        // 2. Fetch Filling Ingredients Cost (if selected)
+        let fillingBaseCost = 0;
+        if (fillingId) {
+            const { data: fillingData } = await supabase
+                .from("filling_ingredients")
+                .select(`amount_grams_ml, ingredients(purchase_price, purchase_quantity)`)
+                .eq("filling_id", fillingId);
+
+            if (fillingData) {
+                fillingBaseCost = fillingData.reduce((acc: number, curr: any) => {
+                    const pricePerUnit = curr.ingredients.purchase_price / curr.ingredients.purchase_quantity;
+                    return acc + (curr.amount_grams_ml * pricePerUnit);
+                }, 0);
+            }
+        }
+
+        // 3. Scale by Size & Layers
+        const scale = (SIZE_MULTIPLIERS[size] || 1);
+
+        // Cake Cost: Base * Scale * Layers
+        const cakeCost = baseCost * scale * layers;
+
+        // Filling Cost: Base * Scale * (Layers - 1)
+        const fillingLayers = Math.max(0, layers - 1);
+        const fillingCost = fillingBaseCost * scale * fillingLayers;
+
+        const totalCost = cakeCost + fillingCost;
+
+        // 4. Suggest Price
+        let suggestedPrice = 0;
+        const recipe = recipes.find(r => r.id === recipeId);
+
+        if (recipe && recipe.selling_price > 0) {
+            // If recipe has a set price, scale it by size/layers
+            suggestedPrice = recipe.selling_price * scale * layers;
+        } else {
+            // Fallback: Cost * 3
+            suggestedPrice = Math.ceil((totalCost * 3) / 100) * 100;
+        }
+
+        setItems(prev => {
+            const newItems = [...prev];
+            if (!newItems[index]) return prev; // Safety check
+
+            newItems[index] = {
+                ...newItems[index],
+                cost: totalCost,
+                // Only update price if NOT skipping (loading mode)
+                price: skipPriceUpdate ? newItems[index].price : suggestedPrice
+            };
+            return newItems;
+        });
+    };
+
+    const addItem = () => {
+        setItems([...items, { id: 'new_' + Date.now(), recipe_id: "", filling_id: "", size: 6, layers: 1, qty: 1, price: 0, cost: 0 }]);
+    };
+
+    const removeItem = async (index: number) => {
+        const itemToRemove = items[index];
+        if (itemToRemove.id && !itemToRemove.id.toString().startsWith('new_')) {
+            // It's an existing item, we should probably mark for deletion or delete directly?
+            // For simplicity, we'll delete from DB on Save, or just delete now?
+            // Let's just remove from state, and handle diff on save.
+            // Actually, simpler to just delete order_items for this order and recreate them on save?
+            // That loses history/stats if we track them. 
+            // Let's just remove from UI and let the user "Save" to commit.
+        }
+        const newItems = items.filter((_, i) => i !== index);
+        setItems(newItems);
+    };
+
+    const updateItem = (index: number, field: string, value: any) => {
+        const newItems = [...items];
+        const item = newItems[index];
+
+        // If critical fields change, recalculate cost
+        if (['recipe_id', 'filling_id', 'size', 'layers'].includes(field)) {
+            const updatedItem = { ...item, [field]: value };
+            // Update state immediately
+            newItems[index] = updatedItem;
+            setItems(newItems);
+            // Then calc cost
+            calculateItemCost(index, updatedItem.recipe_id, updatedItem.filling_id, updatedItem.size, updatedItem.layers);
+        } else {
+            newItems[index] = { ...item, [field]: value };
+            setItems(newItems);
+        }
+    };
+
+    const addExtra = () => {
+        if (!extraName) return;
+        setExtras([...extras, { name: extraName, cost: Number(extraCost), price: Number(extraPrice) }]);
+        setExtraName("");
+        setExtraCost(0);
+        setExtraPrice(0);
+    };
+
+    const removeExtra = (index: number) => {
+        setExtras(extras.filter((_, i) => i !== index));
+    };
+
+    // Totals
+    const totalItemPrice = items.reduce((acc, item) => acc + (Number(item.price) * item.qty), 0);
+    const totalItemCost = items.reduce((acc, item) => acc + (Number(item.cost || 0) * item.qty), 0);
+    const totalExtrasPrice = extras.reduce((acc, ex) => acc + ex.price, 0);
+    const totalExtrasCost = extras.reduce((acc, ex) => acc + ex.cost, 0);
+
+    const subTotal = totalItemPrice + totalExtrasPrice;
+
+    // Discount Logic
+    const discountAmount = discountType === 'percent'
+        ? (subTotal * (discountValue || 0) / 100)
+        : (discountValue || 0);
+
+    const netBeforeTax = Math.max(0, subTotal - discountAmount);
+
+    // VAT Logic
+    let vatAmount = 0;
+    let grandTotal = netBeforeTax;
+
+    if (vatType === 'exclusive') {
+        vatAmount = netBeforeTax * (vatRate / 100);
+        grandTotal = netBeforeTax + vatAmount;
+    } else if (vatType === 'inclusive') {
+        vatAmount = netBeforeTax - (netBeforeTax / (1 + vatRate / 100));
+        grandTotal = netBeforeTax;
+    }
+
+    const totalCost = totalItemCost + totalExtrasCost;
+    const estimatedProfit = (grandTotal - vatAmount) - totalCost;
+
+    // Tip Logic
+    const tip = allowTip ? Math.max(0, amountPaid - grandTotal) : 0;
+    const balance = Math.max(0, grandTotal - amountPaid);
+
+    const handleSave = async () => {
+        if (!customerName || items.length === 0) {
+            alert("Please fill in customer name and at least one item.");
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            // 1. Update Order
+            const { error: orderError } = await supabase
+                .from("orders")
+                .update({
+                    customer_name: customerName,
+                    customer_phone: customerPhone,
+                    delivery_date: deliveryDate ? new Date(deliveryDate).toISOString() : null,
+                    notes: notes + (deliveryAddress ? `\nAddress: ${deliveryAddress}` : ""),
+                    total_price: grandTotal,
+                    total_cost: totalCost,
+                    profit: estimatedProfit + tip,
+                    amount_paid: amountPaid,
+                    discount: discountAmount,
+                    tip: tip,
+                    vat: vatAmount,
+                    vat_type: vatType,
+                    // Don't change status
+                })
+                .eq("id", id);
+
+            if (orderError) throw orderError;
+
+            // 2. Update Items
+            // Strategy: Delete all existing items for this order and re-insert.
+            // This is destructive but safest for ensuring consistency without complex diffing.
+            // WARNING: This changes item IDs. If other tables referenced order_items, this would be bad.
+            // But currently nothing references order_items.
+
+            await supabase.from("order_items").delete().eq("order_id", id);
+
+            const orderItems = items.map(item => ({
+                order_id: id,
+                recipe_id: item.recipe_id,
+                filling_id: item.filling_id || null,
+                size_inches: item.size,
+                layers: item.layers,
+                quantity: item.qty,
+                item_price: item.price,
+                custom_extras: extras
+            }));
+
+            if (orderItems.length > 0) {
+                orderItems[0].custom_extras = extras;
+            }
+
+            const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
+            if (itemsError) throw itemsError;
+
+            router.push(`/orders/${id}`);
+
+        } catch (error: any) {
+            alert("Error updating order: " + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) return <div className="p-12 text-center">Loading Order...</div>;
+
+    return (
+        <div className="min-h-screen bg-[#FDFBF7] p-6 md:p-12 font-sans text-slate-800">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => router.back()} className="p-2 hover:bg-[#E8ECE9] rounded-full transition-colors">
+                        <ArrowLeft className="w-6 h-6 text-slate-500" />
+                    </button>
+                    <div>
+                        <h1 className="text-3xl font-serif text-[#B03050]">Edit Order</h1>
+                        <p className="text-slate-400 font-medium">#{id?.toString().slice(0, 8)}</p>
+                    </div>
+                </div>
+                <button
+                    onClick={handleSave}
+                    disabled={loading}
+                    className="flex items-center gap-2 bg-[#B03050] text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-pink-200 hover:bg-[#902040] transition-all disabled:opacity-50"
+                >
+                    <Save className="w-5 h-5" />
+                    {loading ? "Saving..." : "Update Order"}
+                </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Reuse the same form layout as New Order */}
+                {/* LEFT COLUMN: Customer & Details */}
+                <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9]">
+                        <h2 className="flex items-center gap-2 text-sm font-bold uppercase text-slate-400 mb-6 tracking-wider">
+                            <User className="w-4 h-4" /> Customer Details
+                        </h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Full Name</label>
+                                <input
+                                    type="text"
+                                    value={customerName}
+                                    onChange={e => setCustomerName(e.target.value)}
+                                    className="w-full p-3 bg-[#FDFBF7] border border-[#E8ECE9] rounded-xl font-bold text-slate-800 focus:outline-none focus:border-[#B03050] transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Phone Number</label>
+                                <input
+                                    type="tel"
+                                    value={customerPhone}
+                                    onChange={e => setCustomerPhone(e.target.value)}
+                                    className="w-full p-3 bg-[#FDFBF7] border border-[#E8ECE9] rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#B03050] transition-colors"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9]">
+                        <h2 className="flex items-center gap-2 text-sm font-bold uppercase text-slate-400 mb-6 tracking-wider">
+                            <Calendar className="w-4 h-4" /> Delivery Info
+                        </h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Date & Time</label>
+                                <input
+                                    type="datetime-local"
+                                    value={deliveryDate}
+                                    onChange={e => setDeliveryDate(e.target.value)}
+                                    className="w-full p-3 bg-[#FDFBF7] border border-[#E8ECE9] rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#B03050] transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Delivery Address</label>
+                                <textarea
+                                    value={deliveryAddress}
+                                    onChange={e => setDeliveryAddress(e.target.value)}
+                                    className="w-full p-3 bg-[#FDFBF7] border border-[#E8ECE9] rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#B03050] transition-colors min-h-[80px]"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Notes / Special Instructions</label>
+                                <textarea
+                                    value={notes}
+                                    onChange={e => setNotes(e.target.value)}
+                                    className="w-full p-3 bg-[#FDFBF7] border border-[#E8ECE9] rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#B03050] transition-colors min-h-[80px]"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* MIDDLE & RIGHT: Order Items & Summary */}
+                <div className="lg:col-span-2 space-y-6">
+
+                    {/* Items List */}
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9]">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="flex items-center gap-2 text-sm font-bold uppercase text-slate-400 tracking-wider">
+                                <Calculator className="w-4 h-4" /> Order Items
+                            </h2>
+                            <button onClick={addItem} className="text-xs font-bold bg-[#FDFBF7] border border-[#E8ECE9] hover:bg-[#E8ECE9] px-3 py-2 rounded-lg transition-colors flex items-center gap-1 text-slate-600">
+                                <Plus className="w-3 h-3" /> Add Cake
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            {items.map((item, idx) => (
+                                <div key={item.id || idx} className="p-4 border border-[#E8ECE9] rounded-2xl bg-[#FDFBF7] relative group transition-all hover:shadow-sm">
+                                    <button
+                                        onClick={() => removeItem(idx)}
+                                        className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 pr-8">
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Flavor (Recipe)</label>
+                                            <select
+                                                value={item.recipe_id}
+                                                onChange={e => updateItem(idx, 'recipe_id', e.target.value)}
+                                                className="w-full p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
+                                            >
+                                                <option value="">Select Recipe...</option>
+                                                {recipes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Filling</label>
+                                            <select
+                                                value={item.filling_id}
+                                                onChange={e => updateItem(idx, 'filling_id', e.target.value)}
+                                                className="w-full p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
+                                            >
+                                                <option value="">None</option>
+                                                {fillings.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Size (Inches)</label>
+                                            <select
+                                                value={item.size}
+                                                onChange={e => updateItem(idx, 'size', Number(e.target.value))}
+                                                className="w-full p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
+                                            >
+                                                {[4, 5, 6, 7, 8, 9, 10, 12, 14].map(s => <option key={s} value={s}>{s}"</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Layers</label>
+                                            <input
+                                                type="number"
+                                                value={item.layers}
+                                                onChange={e => updateItem(idx, 'layers', Number(e.target.value))}
+                                                className="w-full p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
+                                                min={1}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Quantity</label>
+                                            <input
+                                                type="number"
+                                                value={item.qty}
+                                                onChange={e => updateItem(idx, 'qty', Number(e.target.value))}
+                                                className="w-full p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
+                                                min={1}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold uppercase text-green-600 mb-1">Price (Each)</label>
+                                            <div className="relative">
+                                                <span className="absolute left-2 top-2 text-green-600 font-bold text-xs">₦</span>
+                                                <input
+                                                    type="number"
+                                                    value={item.price}
+                                                    onChange={e => updateItem(idx, 'price', Number(e.target.value))}
+                                                    className="w-full p-2 pl-6 bg-green-50 border border-green-100 rounded-lg text-sm font-black text-green-700 outline-none focus:border-green-300"
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Extras & Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                        {/* Extras */}
+                        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9]">
+                            <h2 className="text-sm font-bold uppercase text-slate-400 mb-4 tracking-wider">Add-ons & Extras</h2>
+
+                            <div className="flex gap-2 mb-4">
+                                <input
+                                    placeholder="Item (e.g. Topper)"
+                                    className="flex-1 p-2 bg-[#FDFBF7] border border-[#E8ECE9] rounded-lg text-xs font-medium outline-none focus:border-[#B03050]"
+                                    value={extraName}
+                                    onChange={e => setExtraName(e.target.value)}
+                                />
+                                <input
+                                    type="number"
+                                    placeholder="Price"
+                                    className="w-20 p-2 bg-[#FDFBF7] border border-[#E8ECE9] rounded-lg text-xs font-medium outline-none focus:border-[#B03050]"
+                                    value={extraPrice || ''}
+                                    onChange={e => setExtraPrice(Number(e.target.value))}
+                                />
+                                <button onClick={addExtra} className="bg-slate-800 text-white px-3 rounded-lg text-lg font-bold hover:bg-slate-700 transition-colors">+</button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {extras.map((ex, i) => (
+                                    <div key={i} className="flex justify-between items-center text-sm p-2 bg-[#FDFBF7] rounded-lg group border border-[#E8ECE9]">
+                                        <span>{ex.name}</span>
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-bold">₦{ex.price.toLocaleString()}</span>
+                                            <button onClick={() => removeExtra(i)} className="text-slate-300 hover:text-red-500 transition-colors">
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {extras.length === 0 && <p className="text-xs text-slate-300 italic text-center py-2">No extras added</p>}
+                            </div>
+                        </div>
+
+                        {/* Grand Total */}
+                        <div className="bg-slate-900 p-6 rounded-[2rem] text-white flex flex-col justify-between shadow-xl">
+                            <div>
+                                <p className="text-slate-400 text-xs font-bold uppercase mb-1 tracking-wider">Total Order Value</p>
+                                <h3 className="text-4xl font-serif text-[#D4AF37]">₦{grandTotal.toLocaleString()}</h3>
+                            </div>
+
+                            <div className="mt-6 space-y-2 text-sm text-slate-400">
+                                <div className="flex justify-between">
+                                    <span>Items Subtotal</span>
+                                    <span>₦{subTotal.toLocaleString()}</span>
+                                </div>
+
+                                {/* Discount Input */}
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <span>Discount</span>
+                                        <div className="flex bg-slate-800 rounded p-0.5 border border-slate-700">
+                                            <button
+                                                onClick={() => setDiscountType('fixed')}
+                                                className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${discountType === 'fixed' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                                            >
+                                                ₦
+                                            </button>
+                                            <button
+                                                onClick={() => setDiscountType('percent')}
+                                                className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${discountType === 'percent' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                                            >
+                                                %
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-slate-500">-{discountType === 'fixed' ? '₦' : ''}</span>
+                                        <input
+                                            type="number"
+                                            value={discountValue || ''}
+                                            onChange={e => setDiscountValue(Number(e.target.value))}
+                                            className="w-20 p-1 bg-slate-800 border border-slate-700 rounded text-right text-white text-xs outline-none focus:border-slate-500"
+                                            placeholder="0"
+                                        />
+                                        {discountType === 'percent' && <span className="text-slate-500">%</span>}
+                                    </div>
+                                </div>
+                                {discountType === 'percent' && discountValue > 0 && (
+                                    <div className="flex justify-end text-[10px] text-slate-500 -mt-1 mb-1">
+                                        (-₦{discountAmount.toLocaleString()})
+                                    </div>
+                                )}
+
+                                {/* VAT Input */}
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <span>VAT</span>
+                                        <select
+                                            value={vatType}
+                                            onChange={e => setVatType(e.target.value as any)}
+                                            className="bg-slate-800 text-[10px] p-1 rounded border border-slate-700 text-slate-300 outline-none focus:border-slate-500"
+                                        >
+                                            <option value="none">None</option>
+                                            <option value="inclusive">Inclusive (Subtract)</option>
+                                            <option value="exclusive">Exclusive (Add)</option>
+                                        </select>
+                                    </div>
+                                    {vatType !== 'none' && (
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                value={vatRate}
+                                                onChange={e => setVatRate(Number(e.target.value))}
+                                                className="w-10 p-1 bg-slate-800 border border-slate-700 rounded text-right text-white text-xs outline-none focus:border-slate-500"
+                                            />
+                                            <span className="text-slate-500 text-[10px]">%</span>
+                                        </div>
+                                    )}
+                                </div>
+                                {vatType !== 'none' && (
+                                    <div className="flex justify-end text-[10px] text-slate-500 -mt-1 mb-1">
+                                        {vatType === 'exclusive' ? '+' : ''}₦{vatAmount.toLocaleString()}
+                                    </div>
+                                )}
+
+                                {/* Payment Input */}
+                                <div className="pt-4 mt-2 border-t border-slate-700">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="block text-xs font-bold uppercase text-slate-400">Amount Paid</label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={allowTip}
+                                                onChange={e => setAllowTip(e.target.checked)}
+                                                className="w-3 h-3 rounded border-slate-600 bg-slate-800 text-green-500 focus:ring-green-500 focus:ring-offset-slate-900"
+                                            />
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase">Allow Tip</span>
+                                        </label>
+                                    </div>
+                                    <input
+                                        type="number"
+                                        value={amountPaid || ''}
+                                        onChange={e => setAmountPaid(Number(e.target.value))}
+                                        className={`w-full p-2 bg-slate-800 border rounded-lg text-white font-bold outline-none ${amountPaid > grandTotal
+                                            ? (allowTip ? 'border-green-500 focus:ring-green-500' : 'border-red-500 focus:ring-red-500')
+                                            : 'border-slate-700 focus:border-slate-500'
+                                            }`}
+                                    />
+                                    {amountPaid > grandTotal && (
+                                        allowTip ? (
+                                            <div className="flex justify-between items-center mt-1 text-green-400 text-xs font-bold">
+                                                <span>Tip Added:</span>
+                                                <span>+₦{(amountPaid - grandTotal).toLocaleString()}</span>
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-red-400 mt-1 font-bold">Error: Amount exceeds total. Enable tip to allow.</p>
+                                        )
+                                    )}
+                                </div>
+                                <div className="flex justify-between text-[#B03050] font-bold pt-2">
+                                    <span>Balance Due</span>
+                                    <span>₦{balance.toLocaleString()}</span>
+                                </div>
+
+                                {/* Live Profit Indicator (Admin Only) */}
+                                <div className="pt-4 mt-2 border-t border-slate-700 text-xs">
+                                    <div className="flex justify-between">
+                                        <span>Est. Cost</span>
+                                        <span>₦{totalCost.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between text-green-400 font-bold">
+                                        <span>Est. Profit</span>
+                                        <span>₦{estimatedProfit.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between text-slate-500">
+                                        <span>Margin</span>
+                                        <span>{grandTotal - vatAmount > 0 ? ((estimatedProfit / (grandTotal - vatAmount)) * 100).toFixed(1) : 0}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    );
+}

@@ -1,65 +1,123 @@
+import Link from "next/link";
 import Image from "next/image";
+import { ArrowRight, ChefHat, Sparkles, Wheat, Egg, Milk, Cookie, Croissant, Cake, Utensils, IceCream, Candy, PartyPopper, Instagram, Phone } from "lucide-react";
 
-export default function Home() {
+export default function LandingPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-[#FDFBF7] flex flex-col">
+      {/* Header */}
+      <header className="p-6 flex justify-between items-center max-w-7xl mx-auto w-full">
+        <div className="flex items-center gap-4">
+          <div className="relative w-32 h-32 md:w-40 md:h-40">
+            <Image src="/logo.png" alt="Logo" fill className="object-contain" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-3xl font-serif font-bold text-[#B03050] tracking-widest uppercase hidden md:block">Bakes & More</span>
+            <span className="hidden md:block text-4xl text-slate-400 font-['Great_Vibes'] transform -rotate-3 translate-x-4">By Hafsaa</span>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <nav className="flex items-center gap-6">
+          <Link href="/dashboard" className="text-sm font-bold text-slate-400 hover:text-[#B03050] transition-colors uppercase tracking-wider hidden md:block">
+            Admin
+          </Link>
+
+          <div className="flex items-center gap-3">
+            <a
+              href="https://instagram.com/bakesandmore_byhafsaa"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 bg-white text-[#B03050] rounded-full shadow-sm hover:bg-pink-50 hover:scale-110 transition-all"
+              title="Instagram"
+            >
+              <Instagram className="w-5 h-5" />
+            </a>
+            <a
+              href="https://wa.me/2349015670411"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 bg-white text-green-600 rounded-full shadow-sm hover:bg-green-50 hover:scale-110 transition-all"
+              title="WhatsApp"
+            >
+              <Phone className="w-5 h-5" />
+            </a>
+          </div>
+        </nav>
+      </header>
+
+      {/* Hero Section */}
+      <main className="flex-1 flex flex-col items-center justify-center text-center p-6 relative overflow-hidden">
+        {/* Decorative Elements */}
+        <div className="absolute top-1/4 left-10 w-64 h-64 bg-pink-100 rounded-full blur-3xl opacity-50 -z-10" />
+        <div className="absolute bottom-1/4 right-10 w-80 h-80 bg-yellow-100 rounded-full blur-3xl opacity-50 -z-10" />
+
+        {/* Floating Ingredients */}
+        <div className="absolute top-20 left-20 text-slate-300 animate-float opacity-40">
+          <Wheat className="w-12 h-12" />
+        </div>
+        <div className="absolute top-40 right-20 text-slate-300 animate-float-delayed opacity-40">
+          <Egg className="w-10 h-10" />
+        </div>
+        <div className="absolute bottom-32 left-32 text-slate-300 animate-float-slow opacity-40">
+          <Milk className="w-12 h-12" />
+        </div>
+        <div className="absolute bottom-20 right-40 text-slate-300 animate-float opacity-40">
+          <Cookie className="w-10 h-10" />
+        </div>
+        <div className="absolute top-1/3 right-1/4 text-slate-200 animate-float-slow opacity-30 -z-10">
+          <Croissant className="w-16 h-16" />
+        </div>
+        <div className="absolute bottom-1/3 left-1/4 text-slate-200 animate-float-delayed opacity-30 -z-10">
+          <Cake className="w-14 h-14" />
+        </div>
+
+        {/* Additional Icons */}
+        <div className="absolute top-10 left-1/2 text-slate-200 animate-float-slow opacity-30">
+          <Utensils className="w-8 h-8" />
+        </div>
+        <div className="absolute bottom-10 left-10 text-slate-300 animate-float-delayed opacity-40">
+          <IceCream className="w-12 h-12" />
+        </div>
+        <div className="absolute top-1/2 right-10 text-slate-200 animate-float opacity-30">
+          <Candy className="w-10 h-10" />
+        </div>
+        <div className="absolute top-32 left-1/3 text-slate-200 animate-float-delayed opacity-20">
+          <PartyPopper className="w-14 h-14" />
+        </div>
+        <div className="absolute bottom-1/4 right-1/3 text-slate-200 animate-float-slow opacity-25">
+          <Sparkles className="w-8 h-8" />
+        </div>
+
+        <div className="max-w-4xl mx-auto space-y-8 z-10 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+
+          <h1 className="text-6xl md:text-8xl font-serif text-slate-800 leading-tight">
+            Baking Sweet <br />
+            <span className="text-[#B03050] italic font-['Great_Vibes'] pr-4">Memories</span>
+          </h1>
+
+          <p className="text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed">
+            Handcrafted with love and the finest ingredients. Experience the joy of premium baking for your special moments.
+          </p>
+
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 pt-8">
+            <Link href="/order" className="group relative px-8 py-4 bg-[#B03050] text-white rounded-full font-bold text-lg shadow-xl shadow-pink-200 hover:bg-[#902040] hover:scale-105 transition-all overflow-hidden">
+              <span className="relative z-10 flex items-center gap-2">
+                <ChefHat className="w-6 h-6" />
+                Place Order <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </span>
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer" />
+            </Link>
+
+            <Link href="/gallery" className="px-8 py-4 bg-white text-slate-600 border border-slate-200 rounded-full font-bold text-lg hover:bg-slate-50 hover:border-slate-300 transition-all">
+              View Gallery
+            </Link>
+          </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="p-6 text-center text-slate-400 text-sm">
+        <p>&copy; {new Date().getFullYear()} Bakes & More. All rights reserved.</p>
+      </footer>
     </div>
   );
 }
