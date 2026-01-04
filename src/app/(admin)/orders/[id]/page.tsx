@@ -176,6 +176,7 @@ export default function OrderDetailsPage() {
             requiredAmount: 1,
             unit: 'unit',
             costToBake: customAdjCost,
+            costToRestock: customAdjCost, // Assume immediate cost
             stock: 0,
             shortfall: 0
         };
