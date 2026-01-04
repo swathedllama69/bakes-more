@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { Search, Plus, Phone, MapPin, User, Edit, Trash2, Save, X, FileText, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-export default function CustomersPage() {
+function CustomersContent() {
     const searchParams = useSearchParams();
     const initialId = searchParams.get('id');
 
@@ -351,5 +351,13 @@ export default function CustomersPage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function CustomersPage() {
+    return (
+        <Suspense fallback={<div className="p-8 text-center">Loading customers...</div>}>
+            <CustomersContent />
+        </Suspense>
     );
 }
