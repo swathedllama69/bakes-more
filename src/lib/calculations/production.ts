@@ -17,6 +17,7 @@ export interface ProductionSummary {
     totalCostToBake: number;
     totalRestockCost: number;
     totalProfit: number;
+    vat?: number;
 }
 
 export const calculateJobCost = (
