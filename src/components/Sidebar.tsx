@@ -137,7 +137,6 @@ export default function Sidebar() {
                         <span className="hidden lg:block font-bold text-sm tracking-wide">Logout</span>
                     </button>
                 </div>
-            </div>
         </aside >
         </>
     );
