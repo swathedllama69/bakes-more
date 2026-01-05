@@ -8,8 +8,13 @@ import { ArrowLeft, CheckCircle, Clock, Package, ShoppingBag, AlertTriangle, Fla
 import { calculateJobCost, ProductionSummary, ProductionItem } from "@/lib/calculations/production";
 import { getPackagingSize } from "@/lib/constants/bakery";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
-import { PDFDownloadLink } from '@react-pdf/renderer';
+import dynamic from "next/dynamic";
 import InvoicePDF from '@/components/pdf/InvoicePDF';
+
+const PDFDownloadLink = dynamic(
+    () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
+    { ssr: false }
+);
 
 export default function OrderDetailsPage() {
     const { id } = useParams();

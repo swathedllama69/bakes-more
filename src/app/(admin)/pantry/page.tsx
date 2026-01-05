@@ -5,8 +5,13 @@ import { supabase } from "@/lib/supabase";
 import { calculateJobCost, ProductionItem } from "@/lib/calculations/production";
 import { getPackagingSize } from "@/lib/constants/bakery";
 import { Search, Filter, Plus, AlertTriangle, CheckCircle, ShoppingCart, Package, ArrowRight, RefreshCw, Printer, X, Pencil, ArrowUpDown, Trash2, DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
-import { PDFDownloadLink } from '@react-pdf/renderer';
+import dynamic from "next/dynamic";
 import ShoppingListPDF from '@/components/pdf/ShoppingListPDF';
+
+const PDFDownloadLink = dynamic(
+    () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
+    { ssr: false }
+);
 
 export default function PantryPage() {
     const [activeTab, setActiveTab] = useState<'stock' | 'shopping'>('stock');

@@ -5,8 +5,13 @@ import { Calculator, RefreshCw, DollarSign, Percent, Clock, Briefcase, Printer, 
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { PDFDownloadLink } from '@react-pdf/renderer';
+import dynamic from "next/dynamic";
 import QuotePDF from '@/components/pdf/QuotePDF';
+
+const PDFDownloadLink = dynamic(
+    () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
+    { ssr: false }
+);
 
 export default function EstimatorPage() {
     const router = useRouter();
