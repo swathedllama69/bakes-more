@@ -17,9 +17,7 @@ export default function LandingPage() {
           </div>
         </div>
         <nav className="flex items-center gap-6">
-          <Link href="/dashboard" className="text-sm font-bold text-slate-400 hover:text-[#B03050] transition-colors uppercase tracking-wider hidden md:block">
-            Admin
-          </Link>
+          {/* Admin Link Removed */}
 
           <div className="flex items-center gap-3">
             <a
