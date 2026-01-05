@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { DollarSign, ShoppingBag, TrendingUp, AlertCircle, Clock, ArrowRight, BarChart3, PieChart, Users, Calendar, CalendarDays, Eye, EyeOff } from "lucide-react";
+import { DollarSign, ShoppingBag, TrendingUp, AlertCircle, Clock, ArrowRight, BarChart3, PieChart, Users, Calendar, CalendarDays, Eye, EyeOff, Calculator } from "lucide-react";
 import Link from "next/link";
 
 export default function Dashboard() {
@@ -267,11 +267,11 @@ export default function Dashboard() {
               </div>
               <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Check Stock</span>
             </Link>
-            <Link href="/Calculator" className="p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2 text-center group">
-              <div className="p-2 bg-white rounded-full text-purple-600 shadow-sm group-hover:scale-110 transition-transform">
-                <DollarSign className="w-5 h-5" />
+            <Link href="/Calculator" className="p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors flex flex-col items-center gap-2 text-center group">
+              <div className="p-2 bg-white rounded-full text-indigo-600 shadow-sm group-hover:scale-110 transition-transform">
+                <Calculator className="w-5 h-5" />
               </div>
-              <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">Quote Calc</span>
+              <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Quote Calc</span>
             </Link>
           </div>
         </div>

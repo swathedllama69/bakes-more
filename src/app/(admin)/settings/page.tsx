@@ -31,10 +31,24 @@ export default function SettingsPage() {
     const [passwordEmail, setPasswordEmail] = useState("");
     const [resetSent, setResetSent] = useState(false);
 
+    // App Settings (Key-Value Store)
+    const [adminEmail, setAdminEmail] = useState("");
+
     useEffect(() => {
         fetchSettings();
         fetchCategories();
+        fetchAppSettings();
     }, []);
+
+    const fetchAppSettings = async () => {
+        const { data } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'admin_email')
+            .single();
+        
+        if (data) setAdminEmail(data.value);
+    };
 
     const fetchCategories = async () => {
         const { data } = await supabase
@@ -175,6 +189,15 @@ export default function SettingsPage() {
                                     value={settings.company_phone || ""}
                                     onChange={e => setSettings({ ...settings, company_phone: e.target.value })}
                                     className="w-full p-3 bg-[#FAFAFA] border border-[#E8ECE9] rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#B03050]"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Admin Email (For Notifications)</label>
+                                <input
+                                    value={adminEmail}
+                                    onChange={e => setAdminEmail(e.target.value)}
+                                    className="w-full p-3 bg-[#FAFAFA] border border-[#E8ECE9] rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#B03050]"
+                                    placeholder="admin@example.com"
                                 />
                             </div>
                         </div>
