@@ -8,8 +8,13 @@ import { Printer, Save, RefreshCw, Plus, Trash2, AlertTriangle, CheckCircle, Edi
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
-import { PDFDownloadLink } from '@react-pdf/renderer';
+import dynamic from "next/dynamic";
 import QuotePDF from '@/components/pdf/QuotePDF';
+
+const PDFDownloadLink = dynamic(
+    () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
+    { ssr: false }
+);
 
 export default function QuoteCalculator() {
     const router = useRouter();
