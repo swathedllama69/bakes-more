@@ -281,22 +281,28 @@ export default function OrderManager() {
                                     </div>
 
                                     {/* Date */}
-                                    <div className="text-right md:text-right text-sm text-slate-600">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <Clock className="w-3 h-3 text-slate-400" />
-                                            <span className="font-medium">
-                                                {new Date(order.delivery_date || order.created_at).toLocaleDateString()}
-                                            </span>
+                                    <div className="flex justify-between items-center md:block md:text-right text-sm text-slate-600 border-t md:border-none pt-2 md:pt-0 border-slate-50">
+                                        <span className="md:hidden text-xs font-bold text-slate-400 uppercase">Due Date</span>
+                                        <div>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Clock className="w-3 h-3 text-slate-400" />
+                                                <span className="font-medium">
+                                                    {new Date(order.delivery_date || order.created_at).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                            <p className="hidden md:block text-xs text-slate-400 mt-0.5">Due Date</p>
                                         </div>
-                                        <p className="text-xs text-slate-400 mt-0.5">Due Date</p>
                                     </div>
 
                                     {/* Amount */}
-                                    <div className="text-right">
-                                        <p className="font-serif font-bold text-slate-800">₦{order.total_price?.toLocaleString()}</p>
-                                        <p className={`text-xs font-bold ${balance <= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                            {balance <= 0 ? 'Paid' : `Due: ₦${balance.toLocaleString()}`}
-                                        </p>
+                                    <div className="flex justify-between items-center md:block md:text-right border-t md:border-none pt-2 md:pt-0 border-slate-50">
+                                        <span className="md:hidden text-xs font-bold text-slate-400 uppercase">Total</span>
+                                        <div>
+                                            <p className="font-serif font-bold text-slate-800">₦{order.total_price?.toLocaleString()}</p>
+                                            <p className={`text-xs font-bold ${balance <= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                {balance <= 0 ? 'Paid' : `Due: ₦${balance.toLocaleString()}`}
+                                            </p>
+                                        </div>
                                     </div>
 
                                     {/* Status (Desktop) */}

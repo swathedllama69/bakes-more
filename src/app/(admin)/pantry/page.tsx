@@ -436,9 +436,11 @@ export default function PantryPage() {
                         </div>
                     </div>
 
-                    {/* Stock Table */}
+                    {/* Stock List (Desktop Table / Mobile Cards) */}
                     <div className="bg-white rounded-[2rem] border border-[#E8ECE9] shadow-sm overflow-hidden">
-                        <div className="overflow-x-auto">
+                        
+                        {/* Desktop Table */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full">
                                 <thead className="bg-[#FAFAFA] border-b border-[#E8ECE9]">
                                     <tr>
@@ -539,6 +541,48 @@ export default function PantryPage() {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* Mobile Cards */}
+                        <div className="md:hidden divide-y divide-[#E8ECE9]">
+                             {loadingStock ? (
+                                <div className="p-6 text-center text-slate-400">Loading...</div>
+                             ) : filteredIngredients.length === 0 ? (
+                                <div className="p-6 text-center text-slate-400">No ingredients found.</div>
+                             ) : (
+                                paginatedIngredients.map((item) => (
+                                    <div key={item.id} className="p-4 space-y-3">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="font-bold text-slate-800">{item.name}</p>
+                                                <p className="text-xs text-slate-400">₦{item.purchase_price.toLocaleString()} / {item.purchase_quantity}{item.unit}</p>
+                                            </div>
+                                            <span className="px-2 py-1 rounded-full bg-[#FDFBF7] border border-[#E8ECE9] text-[10px] font-bold text-slate-600">
+                                                {item.category}
+                                            </span>
+                                        </div>
+                                        
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-1">
+                                                <button onClick={() => updateStock(item.id, Math.max(0, item.current_stock - 100))} className="w-8 h-8 flex items-center justify-center rounded-md bg-white shadow-sm text-slate-600">-</button>
+                                                <span className="text-sm font-bold w-12 text-center">{item.current_stock}<span className="text-xs text-slate-400 ml-0.5">{item.unit}</span></span>
+                                                <button onClick={() => updateStock(item.id, item.current_stock + 100)} className="w-8 h-8 flex items-center justify-center rounded-md bg-white shadow-sm text-slate-600">+</button>
+                                            </div>
+                                            
+                                            <div className="flex gap-2">
+                                                <button onClick={() => { setEditingIngredient(item); setIsEditModalOpen(true); }} className="p-2 bg-slate-50 text-slate-500 rounded-lg"><Pencil className="w-4 h-4" /></button>
+                                                <button onClick={() => deleteIngredient(item.id)} className="p-2 bg-red-50 text-red-500 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                                            </div>
+                                        </div>
+
+                                        {item.current_stock < item.min_stock_level && (
+                                            <div className="flex items-center gap-2 text-xs font-bold text-red-500 bg-red-50 px-3 py-2 rounded-lg">
+                                                <AlertTriangle className="w-3 h-3" /> Low Stock (Min: {item.min_stock_level})
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
+                             )}
                         </div>
                     </div>
 

@@ -197,12 +197,12 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-8 md:p-12 min-h-screen bg-[#FAFAFA]">
+    <div className="p-4 md:p-12 min-h-screen bg-[#FAFAFA]">
 
-      <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="mb-8 md:mb-12 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-4xl md:text-5xl font-serif text-[#B03050] mb-2">{greeting}, Hafsaa</h1>
-          <p className="text-slate-500 font-medium text-lg">Here's what's happening in your bakery today.</p>
+          <h1 className="text-3xl md:text-5xl font-serif text-[#B03050] mb-2">{greeting}, Hafsaa</h1>
+          <p className="text-slate-500 font-medium text-base md:text-lg">Here's what's happening in your bakery today.</p>
         </div>
         <div className="flex flex-col items-end gap-4">
           <div className="flex items-center gap-3">
