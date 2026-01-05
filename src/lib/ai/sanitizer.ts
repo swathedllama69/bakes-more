@@ -59,6 +59,7 @@ export const prepareDailyBriefingData = (orders: any[], inventory: any[]) => {
     return {
         date: today.toISOString(),
         orders_due: dueToday,
-        low_stock_alerts: lowStock
+        low_stock_alerts: lowStock,
+        upcoming_reminders: [] as any[]
     };
 };

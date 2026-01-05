@@ -3,7 +3,7 @@
 import { OpenAI } from "openai";
 
 export async function processAIRequest(
-    messages: any[], 
+    messages: any[],
     imageBase64?: string
 ) {
     if (!process.env.OPENAI_API_KEY) {
@@ -127,9 +127,9 @@ export async function processAIRequest(
 
     } catch (error: any) {
         console.error("AI Error Details:", error);
-        
+
         let errorMessage = "I'm sorry, I encountered an error processing your request.";
-        
+
         if (error.code === 'invalid_api_key') {
             errorMessage = "Configuration Error: Invalid OpenAI API Key. Please check your .env file.";
         } else if (error.code === 'model_not_found') {

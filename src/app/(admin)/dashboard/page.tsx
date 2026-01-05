@@ -226,139 +226,139 @@ export default function Dashboard() {
             </span>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3">
-           <button
-              onClick={() => setShowFinancials(!showFinancials)}
-              className="p-3 bg-white border border-[#E8ECE9] rounded-xl shadow-sm hover:shadow-md transition-all text-slate-400 hover:text-[#B03050]"
-              title={showFinancials ? "Hide Financials" : "Show Financials"}
-            >
-              {showFinancials ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
-            <Link href="/planner" className="flex items-center gap-3 px-5 py-3 bg-[#B03050] text-white rounded-xl shadow-lg shadow-pink-200 hover:bg-[#902040] hover:shadow-xl hover:-translate-y-0.5 transition-all group">
-              <CalendarDays className="w-5 h-5" />
-              <span className="font-bold text-sm tracking-wide">Production Planner</span>
-            </Link>
+          <button
+            onClick={() => setShowFinancials(!showFinancials)}
+            className="p-3 bg-white border border-[#E8ECE9] rounded-xl shadow-sm hover:shadow-md transition-all text-slate-400 hover:text-[#B03050]"
+            title={showFinancials ? "Hide Financials" : "Show Financials"}
+          >
+            {showFinancials ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+          <Link href="/planner" className="flex items-center gap-3 px-5 py-3 bg-[#B03050] text-white rounded-xl shadow-lg shadow-pink-200 hover:bg-[#902040] hover:shadow-xl hover:-translate-y-0.5 transition-all group">
+            <CalendarDays className="w-5 h-5" />
+            <span className="font-bold text-sm tracking-wide">Production Planner</span>
+          </Link>
         </div>
       </div>
 
       {/* Quick Actions & Production Snapshot */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-        
+
         {/* Quick Actions */}
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9] flex flex-col justify-between">
-            <h3 className="text-lg font-serif text-slate-800 mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-3">
-                <Link href="/orders" className="p-4 bg-pink-50 rounded-xl hover:bg-pink-100 transition-colors flex flex-col items-center gap-2 text-center group">
-                    <div className="p-2 bg-white rounded-full text-[#B03050] shadow-sm group-hover:scale-110 transition-transform">
-                        <ShoppingBag className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-bold text-[#B03050] uppercase tracking-wider">New Order</span>
-                </Link>
-                <Link href="/recipes" className="p-4 bg-orange-50 rounded-xl hover:bg-orange-100 transition-colors flex flex-col items-center gap-2 text-center group">
-                    <div className="p-2 bg-white rounded-full text-orange-600 shadow-sm group-hover:scale-110 transition-transform">
-                        <Clock className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-bold text-orange-600 uppercase tracking-wider">New Recipe</span>
-                </Link>
-                <Link href="/pantry" className="p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors flex flex-col items-center gap-2 text-center group">
-                    <div className="p-2 bg-white rounded-full text-blue-600 shadow-sm group-hover:scale-110 transition-transform">
-                        <AlertCircle className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Check Stock</span>
-                </Link>
-                <Link href="/Calculator" className="p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2 text-center group">
-                    <div className="p-2 bg-white rounded-full text-purple-600 shadow-sm group-hover:scale-110 transition-transform">
-                        <DollarSign className="w-5 h-5" />
-                    </div>
-                    <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">Quote Calc</span>
-                </Link>
-            </div>
+          <h3 className="text-lg font-serif text-slate-800 mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <Link href="/orders" className="p-4 bg-pink-50 rounded-xl hover:bg-pink-100 transition-colors flex flex-col items-center gap-2 text-center group">
+              <div className="p-2 bg-white rounded-full text-[#B03050] shadow-sm group-hover:scale-110 transition-transform">
+                <ShoppingBag className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-bold text-[#B03050] uppercase tracking-wider">New Order</span>
+            </Link>
+            <Link href="/recipes" className="p-4 bg-orange-50 rounded-xl hover:bg-orange-100 transition-colors flex flex-col items-center gap-2 text-center group">
+              <div className="p-2 bg-white rounded-full text-orange-600 shadow-sm group-hover:scale-110 transition-transform">
+                <Clock className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-bold text-orange-600 uppercase tracking-wider">New Recipe</span>
+            </Link>
+            <Link href="/pantry" className="p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors flex flex-col items-center gap-2 text-center group">
+              <div className="p-2 bg-white rounded-full text-blue-600 shadow-sm group-hover:scale-110 transition-transform">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Check Stock</span>
+            </Link>
+            <Link href="/Calculator" className="p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2 text-center group">
+              <div className="p-2 bg-white rounded-full text-purple-600 shadow-sm group-hover:scale-110 transition-transform">
+                <DollarSign className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">Quote Calc</span>
+            </Link>
+          </div>
         </div>
 
         {/* Production Status */}
         <div className="lg:col-span-2 bg-[#B03050] text-white p-8 rounded-[2rem] shadow-xl relative overflow-hidden flex flex-col justify-between">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl" />
-            
-            <div className="relative z-10 flex justify-between items-start">
-                <div>
-                    <h3 className="text-2xl font-serif mb-1">Production Status</h3>
-                    <p className="text-slate-400 text-sm">Live overview of your kitchen</p>
-                </div>
-                <div className="flex gap-2">
-                    <div className="px-4 py-2 bg-white/10 rounded-lg backdrop-blur-sm border border-white/10">
-                        <span className="block text-2xl font-bold">{stats.dueToday}</span>
-                        <span className="text-[10px] uppercase tracking-widest text-slate-400">Due Today</span>
-                    </div>
-                    <div className="px-4 py-2 bg-white/5 rounded-lg backdrop-blur-sm border border-white/5">
-                        <span className="block text-2xl font-bold text-slate-300">{stats.dueTomorrow}</span>
-                        <span className="text-[10px] uppercase tracking-widest text-slate-500">Tomorrow</span>
-                    </div>
-                </div>
-            </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl" />
 
-            <div className="relative z-10 grid grid-cols-3 gap-4 mt-8">
-                <div className="p-4 bg-white/10 rounded-xl border border-white/5 hover:bg-white/15 transition-colors">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-yellow-400">Pending</span>
-                    </div>
-                    <span className="text-3xl font-serif">{stats.pendingOrders}</span>
-                    <p className="text-xs text-slate-400 mt-1">Orders to start</p>
-                </div>
-                <div className="p-4 bg-white/10 rounded-xl border border-white/5 hover:bg-white/15 transition-colors">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Baking</span>
-                    </div>
-                    <span className="text-3xl font-serif">{stats.bakingOrders}</span>
-                    <p className="text-xs text-slate-400 mt-1">In the oven</p>
-                </div>
-                <div className="p-4 bg-white/10 rounded-xl border border-white/5 hover:bg-white/15 transition-colors">
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="w-2 h-2 rounded-full bg-orange-400" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-orange-400">Low Stock</span>
-                    </div>
-                    <span className="text-3xl font-serif">{stats.lowStockItems}</span>
-                    <p className="text-xs text-slate-400 mt-1">Items critical</p>
-                </div>
+          <div className="relative z-10 flex justify-between items-start">
+            <div>
+              <h3 className="text-2xl font-serif mb-1">Production Status</h3>
+              <p className="text-slate-400 text-sm">Live overview of your kitchen</p>
             </div>
+            <div className="flex gap-2">
+              <div className="px-4 py-2 bg-white/10 rounded-lg backdrop-blur-sm border border-white/10">
+                <span className="block text-2xl font-bold">{stats.dueToday}</span>
+                <span className="text-[10px] uppercase tracking-widest text-slate-400">Due Today</span>
+              </div>
+              <div className="px-4 py-2 bg-white/5 rounded-lg backdrop-blur-sm border border-white/5">
+                <span className="block text-2xl font-bold text-slate-300">{stats.dueTomorrow}</span>
+                <span className="text-[10px] uppercase tracking-widest text-slate-500">Tomorrow</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative z-10 grid grid-cols-3 gap-4 mt-8">
+            <div className="p-4 bg-white/10 rounded-xl border border-white/5 hover:bg-white/15 transition-colors">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                <span className="text-xs font-bold uppercase tracking-wider text-yellow-400">Pending</span>
+              </div>
+              <span className="text-3xl font-serif">{stats.pendingOrders}</span>
+              <p className="text-xs text-slate-400 mt-1">Orders to start</p>
+            </div>
+            <div className="p-4 bg-white/10 rounded-xl border border-white/5 hover:bg-white/15 transition-colors">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Baking</span>
+              </div>
+              <span className="text-3xl font-serif">{stats.bakingOrders}</span>
+              <p className="text-xs text-slate-400 mt-1">In the oven</p>
+            </div>
+            <div className="p-4 bg-white/10 rounded-xl border border-white/5 hover:bg-white/15 transition-colors">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-2 h-2 rounded-full bg-orange-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-orange-400">Low Stock</span>
+              </div>
+              <span className="text-3xl font-serif">{stats.lowStockItems}</span>
+              <p className="text-xs text-slate-400 mt-1">Items critical</p>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Financial Highlights (Collapsible/Toggleable via Eye icon) */}
       {showFinancials && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
-            <StatCard
+          <StatCard
             title="Total Revenue"
             value={`₦${stats.revenue.toLocaleString()}`}
             icon={<DollarSign className="w-5 h-5 text-[#B03050]" />}
             bg="bg-pink-50"
             text="text-[#B03050]"
             trend={stats.monthlyGrowth}
-            />
-            <StatCard
+          />
+          <StatCard
             title="Net Profit"
             value={`₦${stats.profit.toLocaleString()}`}
             icon={<TrendingUp className="w-5 h-5 text-emerald-600" />}
             bg="bg-emerald-50"
             text="text-emerald-600"
-            />
-            <StatCard
+          />
+          <StatCard
             title="This Month"
             value={`₦${stats.monthlyRevenue.toLocaleString()}`}
             sub={`${stats.monthlyOrdersCount} orders`}
             icon={<Calendar className="w-5 h-5 text-amber-600" />}
             bg="bg-amber-50"
             text="text-amber-600"
-            />
-            <StatCard
+          />
+          <StatCard
             title="Avg. Order"
             value={`₦${Math.round(stats.avgOrderValue).toLocaleString()}`}
             icon={<BarChart3 className="w-5 h-5 text-indigo-600" />}
             bg="bg-indigo-50"
             text="text-indigo-600"
-            />
+          />
         </div>
       )}
 
@@ -500,10 +500,10 @@ function StatCard({ title, value, sub, icon, bg, text, trend }: any) {
         <h3 className={`text-2xl md:text-3xl font-serif ${text}`}>{value}</h3>
         {sub && <p className="text-xs text-slate-400 mt-1 font-medium italic">{sub}</p>}
         {trend !== undefined && (
-            <div className={`flex items-center gap-1 mt-1 text-xs font-bold ${trend >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingUp className="w-3 h-3 rotate-180" />}
-                {Math.abs(trend).toFixed(1)}%
-            </div>
+          <div className={`flex items-center gap-1 mt-1 text-xs font-bold ${trend >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            {trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingUp className="w-3 h-3 rotate-180" />}
+            {Math.abs(trend).toFixed(1)}%
+          </div>
         )}
       </div>
       <div className={`p-3 rounded-2xl ${bg} shadow-inner group-hover:scale-110 transition-transform`}>

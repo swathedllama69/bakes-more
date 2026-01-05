@@ -120,7 +120,7 @@ export default function OrderPage() {
 
     const handleCustomOrderSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         // Send email to admin
         try {
             await fetch('/api/send-email', {
