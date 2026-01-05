@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, ShoppingBag, Package, ChefHat, Menu, Settings, Users, FileText, Calculator, CircleDollarSign, LogOut, X } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Package, ChefHat, Menu, Settings, Users, FileText, Calculator, CircleDollarSign, LogOut, X, Timer } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
@@ -26,14 +26,14 @@ export default function MobileNav() {
             <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-3 z-50 flex justify-between items-center shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)]">
                 <NavLink href="/dashboard" icon={<LayoutDashboard className="w-6 h-6" />} label="Home" active={isActive('/dashboard')} />
                 <NavLink href="/orders" icon={<ShoppingBag className="w-6 h-6" />} label="Orders" active={isActive('/orders')} />
-                
+
                 {/* Center Menu Button */}
                 <div className="relative -top-6">
-                    <button 
+                    <button
                         onClick={() => setIsMoreOpen(!isMoreOpen)}
                         className={`flex items-center justify-center w-14 h-14 rounded-full shadow-lg shadow-pink-200 text-white transform transition-transform active:scale-95 ${isMoreOpen ? 'bg-slate-800' : 'bg-[#B03050]'}`}
                     >
-                        {isMoreOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
+                        {isMoreOpen ? <X className="w-7 h-7" /> : <ChefHat className="w-7 h-7" />}
                     </button>
                 </div>
 
@@ -68,8 +68,9 @@ export default function MobileNav() {
                                 <MenuLink href="/customers" icon={<Users className="w-6 h-6" />} label="Clients" onClick={() => setIsMoreOpen(false)} />
                                 <MenuLink href="/quotes" icon={<FileText className="w-6 h-6" />} label="Quotes" onClick={() => setIsMoreOpen(false)} />
                                 <MenuLink href="/Calculator" icon={<Calculator className="w-6 h-6" />} label="Calc" onClick={() => setIsMoreOpen(false)} />
+                                <MenuLink href="/timer" icon={<Timer className="w-6 h-6" />} label="Timer" onClick={() => setIsMoreOpen(false)} />
                                 <MenuLink href="/reports" icon={<CircleDollarSign className="w-6 h-6" />} label="Reports" onClick={() => setIsMoreOpen(false)} />
-                                <button 
+                                <button
                                     onClick={handleLogout}
                                     className="flex flex-col items-center gap-2 p-3 rounded-2xl active:bg-red-50 transition-colors group"
                                 >

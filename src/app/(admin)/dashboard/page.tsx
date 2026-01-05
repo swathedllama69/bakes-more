@@ -17,7 +17,9 @@ export default function Dashboard() {
     monthlyGrowth: 0,
     avgOrderValue: 0,
     totalCustomers: 0,
-    monthlyOrdersCount: 0
+    monthlyOrdersCount: 0,
+    dueToday: 0,
+    dueTomorrow: 0
   });
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [revenueData, setRevenueData] = useState<any[]>([]);
@@ -93,6 +95,16 @@ export default function Dashboard() {
         ? (thisMonthRevenue > 0 ? 100 : 0)
         : ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
 
+      // Production Snapshot
+      const today = new Date().toISOString().split('T')[0];
+      const dueToday = orders.filter(o => o.due_date === today && o.status !== 'Delivered' && o.status !== 'Cancelled');
+      const dueTomorrow = orders.filter(o => {
+        const d = new Date(o.due_date);
+        const t = new Date();
+        t.setDate(t.getDate() + 1);
+        return d.toISOString().split('T')[0] === t.toISOString().split('T')[0] && o.status !== 'Delivered';
+      });
+
       setStats(prev => ({
         ...prev,
         revenue,
@@ -104,7 +116,9 @@ export default function Dashboard() {
         monthlyGrowth: growth,
         avgOrderValue,
         totalCustomers: customerCount || 0,
-        monthlyOrdersCount: thisMonthOrders.length
+        monthlyOrdersCount: thisMonthOrders.length,
+        dueToday: dueToday.length,
+        dueTomorrow: dueTomorrow.length
       }));
 
       // Initial Chart Data (6m)
@@ -197,102 +211,156 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-4 md:p-12 min-h-screen bg-[#FAFAFA]">
+    <div className="p-6 md:p-10 min-h-screen bg-[#FAFAFA] max-w-[1600px] mx-auto">
 
-      <div className="mb-8 md:mb-12 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      {/* Header Section */}
+      <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-3xl md:text-5xl font-serif text-[#B03050] mb-2">{greeting}, Hafsaa</h1>
-          <p className="text-slate-500 font-medium text-base md:text-lg">Here's what's happening in your bakery today.</p>
+          <h1 className="text-4xl md:text-5xl font-serif text-[#B03050] mb-3 tracking-tight">{greeting}, Hafsaa</h1>
+          <div className="flex items-center gap-2 text-slate-500">
+            <span className="bg-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border border-slate-100 shadow-sm">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </span>
+            <span className="text-sm font-medium">
+              You have <strong className="text-[#B03050]">{stats.dueToday} orders</strong> due today.
+            </span>
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-4">
-          <div className="flex items-center gap-3">
-            <button
+        
+        <div className="flex items-center gap-3">
+           <button
               onClick={() => setShowFinancials(!showFinancials)}
               className="p-3 bg-white border border-[#E8ECE9] rounded-xl shadow-sm hover:shadow-md transition-all text-slate-400 hover:text-[#B03050]"
               title={showFinancials ? "Hide Financials" : "Show Financials"}
             >
-              {showFinancials ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
+              {showFinancials ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
-            <Link href="/planner" className="flex items-center gap-2 text-[#B03050] hover:text-[#902040] transition-colors group">
-              <span className="text-sm font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Open Planner</span>
-              <div className="p-3 bg-white border border-[#E8ECE9] rounded-xl shadow-sm group-hover:shadow-md transition-all">
-                <CalendarDays className="w-6 h-6" />
-              </div>
+            <Link href="/planner" className="flex items-center gap-3 px-5 py-3 bg-[#B03050] text-white rounded-xl shadow-lg shadow-pink-200 hover:bg-[#902040] hover:shadow-xl hover:-translate-y-0.5 transition-all group">
+              <CalendarDays className="w-5 h-5" />
+              <span className="font-bold text-sm tracking-wide">Production Planner</span>
             </Link>
-          </div>
-          <div className="text-right hidden md:block">
-            <p className="text-sm font-bold uppercase tracking-widest text-slate-400">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-          </div>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        {/* Financials Row */}
-        <StatCard
-          title="Total Revenue"
-          value={showFinancials ? `₦${stats.revenue.toLocaleString()}` : "₦••••••"}
-          icon={<DollarSign className="w-6 h-6 text-[#B03050]" />}
-          bg="bg-pink-50"
-          text="text-[#B03050]"
-        />
-        <StatCard
-          title="Total Profit"
-          value={showFinancials ? `₦${stats.profit.toLocaleString()}` : "₦••••••"}
-          icon={<TrendingUp className="w-6 h-6 text-green-600" />}
-          bg="bg-green-50"
-          text="text-green-600"
-        />
-        <StatCard
-          title="This Month"
-          value={showFinancials ? `₦${stats.monthlyRevenue.toLocaleString()}` : "₦••••••"}
-          sub={showFinancials ? `Profit: ₦${stats.monthlyProfit.toLocaleString()} • ${stats.monthlyGrowth > 0 ? '+' : ''}${stats.monthlyGrowth.toFixed(1)}%` : "Financials Hidden"}
-          icon={<Calendar className="w-6 h-6 text-[#D4AF37]" />}
-          bg="bg-yellow-50"
-          text="text-[#D4AF37]"
-        />
-        <StatCard
-          title="Avg. Order Value"
-          value={showFinancials ? `₦${Math.round(stats.avgOrderValue).toLocaleString()}` : "₦••••••"}
-          icon={<BarChart3 className="w-6 h-6 text-indigo-600" />}
-          bg="bg-indigo-50"
-          text="text-indigo-600"
-        />
+      {/* Quick Actions & Production Snapshot */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+        
+        {/* Quick Actions */}
+        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9] flex flex-col justify-between">
+            <h3 className="text-lg font-serif text-slate-800 mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 gap-3">
+                <Link href="/orders" className="p-4 bg-pink-50 rounded-xl hover:bg-pink-100 transition-colors flex flex-col items-center gap-2 text-center group">
+                    <div className="p-2 bg-white rounded-full text-[#B03050] shadow-sm group-hover:scale-110 transition-transform">
+                        <ShoppingBag className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-[#B03050] uppercase tracking-wider">New Order</span>
+                </Link>
+                <Link href="/recipes" className="p-4 bg-orange-50 rounded-xl hover:bg-orange-100 transition-colors flex flex-col items-center gap-2 text-center group">
+                    <div className="p-2 bg-white rounded-full text-orange-600 shadow-sm group-hover:scale-110 transition-transform">
+                        <Clock className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-orange-600 uppercase tracking-wider">New Recipe</span>
+                </Link>
+                <Link href="/pantry" className="p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors flex flex-col items-center gap-2 text-center group">
+                    <div className="p-2 bg-white rounded-full text-blue-600 shadow-sm group-hover:scale-110 transition-transform">
+                        <AlertCircle className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Check Stock</span>
+                </Link>
+                <Link href="/Calculator" className="p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors flex flex-col items-center gap-2 text-center group">
+                    <div className="p-2 bg-white rounded-full text-purple-600 shadow-sm group-hover:scale-110 transition-transform">
+                        <DollarSign className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">Quote Calc</span>
+                </Link>
+            </div>
+        </div>
 
-        {/* Operations Row */}
-        <StatCard
-          title="Active Orders"
-          value={(stats.pendingOrders + stats.bakingOrders).toString()}
-          sub={`${stats.pendingOrders} Pending, ${stats.bakingOrders} Baking`}
-          icon={<ShoppingBag className="w-6 h-6 text-slate-600" />}
-          bg="bg-slate-100"
-          text="text-slate-700"
-        />
-        <StatCard
-          title="Total Orders"
-          value={allOrders.length.toString()}
-          sub={`${stats.monthlyOrdersCount} orders this month`}
-          icon={<ShoppingBag className="w-6 h-6 text-purple-600" />}
-          bg="bg-purple-50"
-          text="text-purple-600"
-        />
-        <StatCard
-          title="Total Customers"
-          value={stats.totalCustomers.toString()}
-          sub="Registered Clients"
-          icon={<Users className="w-6 h-6 text-blue-600" />}
-          bg="bg-blue-50"
-          text="text-blue-600"
-        />
-        <StatCard
-          title="Low Stock Alerts"
-          value={stats.lowStockItems.toString()}
-          sub="Items need restocking"
-          icon={<AlertCircle className="w-6 h-6 text-orange-600" />}
-          bg="bg-orange-50"
-          text="text-orange-600"
-        />
+        {/* Production Status */}
+        <div className="lg:col-span-2 bg-[#B03050] text-white p-8 rounded-[2rem] shadow-xl relative overflow-hidden flex flex-col justify-between">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl" />
+            
+            <div className="relative z-10 flex justify-between items-start">
+                <div>
+                    <h3 className="text-2xl font-serif mb-1">Production Status</h3>
+                    <p className="text-slate-400 text-sm">Live overview of your kitchen</p>
+                </div>
+                <div className="flex gap-2">
+                    <div className="px-4 py-2 bg-white/10 rounded-lg backdrop-blur-sm border border-white/10">
+                        <span className="block text-2xl font-bold">{stats.dueToday}</span>
+                        <span className="text-[10px] uppercase tracking-widest text-slate-400">Due Today</span>
+                    </div>
+                    <div className="px-4 py-2 bg-white/5 rounded-lg backdrop-blur-sm border border-white/5">
+                        <span className="block text-2xl font-bold text-slate-300">{stats.dueTomorrow}</span>
+                        <span className="text-[10px] uppercase tracking-widest text-slate-500">Tomorrow</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="relative z-10 grid grid-cols-3 gap-4 mt-8">
+                <div className="p-4 bg-white/10 rounded-xl border border-white/5 hover:bg-white/15 transition-colors">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-yellow-400">Pending</span>
+                    </div>
+                    <span className="text-3xl font-serif">{stats.pendingOrders}</span>
+                    <p className="text-xs text-slate-400 mt-1">Orders to start</p>
+                </div>
+                <div className="p-4 bg-white/10 rounded-xl border border-white/5 hover:bg-white/15 transition-colors">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-blue-400">Baking</span>
+                    </div>
+                    <span className="text-3xl font-serif">{stats.bakingOrders}</span>
+                    <p className="text-xs text-slate-400 mt-1">In the oven</p>
+                </div>
+                <div className="p-4 bg-white/10 rounded-xl border border-white/5 hover:bg-white/15 transition-colors">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-orange-400" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-orange-400">Low Stock</span>
+                    </div>
+                    <span className="text-3xl font-serif">{stats.lowStockItems}</span>
+                    <p className="text-xs text-slate-400 mt-1">Items critical</p>
+                </div>
+            </div>
+        </div>
       </div>
+
+      {/* Financial Highlights (Collapsible/Toggleable via Eye icon) */}
+      {showFinancials && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
+            <StatCard
+            title="Total Revenue"
+            value={`₦${stats.revenue.toLocaleString()}`}
+            icon={<DollarSign className="w-5 h-5 text-[#B03050]" />}
+            bg="bg-pink-50"
+            text="text-[#B03050]"
+            trend={stats.monthlyGrowth}
+            />
+            <StatCard
+            title="Net Profit"
+            value={`₦${stats.profit.toLocaleString()}`}
+            icon={<TrendingUp className="w-5 h-5 text-emerald-600" />}
+            bg="bg-emerald-50"
+            text="text-emerald-600"
+            />
+            <StatCard
+            title="This Month"
+            value={`₦${stats.monthlyRevenue.toLocaleString()}`}
+            sub={`${stats.monthlyOrdersCount} orders`}
+            icon={<Calendar className="w-5 h-5 text-amber-600" />}
+            bg="bg-amber-50"
+            text="text-amber-600"
+            />
+            <StatCard
+            title="Avg. Order"
+            value={`₦${Math.round(stats.avgOrderValue).toLocaleString()}`}
+            icon={<BarChart3 className="w-5 h-5 text-indigo-600" />}
+            bg="bg-indigo-50"
+            text="text-indigo-600"
+            />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
         {/* Revenue Chart */}
@@ -377,8 +445,8 @@ export default function Dashboard() {
       <div className="bg-white rounded-[2rem] shadow-sm border border-[#E8ECE9] p-8 relative">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-serif text-slate-800">Recent Orders</h2>
-          <Link href="/orders" className="text-sm font-bold text-[#B03050] hover:text-[#902040] flex items-center gap-1 uppercase tracking-wider text-xs">
-            View All <ArrowRight className="w-4 h-4" />
+          <Link href="/orders" className="text-sm font-bold text-[#B03050] hover:text-[#902040] flex items-center gap-1 uppercase tracking-wider text-xs group">
+            View All <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </Link>
         </div>
 
@@ -424,15 +492,21 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ title, value, sub, icon, bg, text }: any) {
+function StatCard({ title, value, sub, icon, bg, text, trend }: any) {
   return (
-    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9] flex items-start justify-between hover:shadow-md transition-all hover:-translate-y-1 duration-300">
+    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9] flex items-start justify-between hover:shadow-md transition-all hover:-translate-y-1 duration-300 group">
       <div>
-        <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">{title}</p>
-        <h3 className={`text-3xl font-serif ${text}`}>{value}</h3>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 group-hover:text-[#B03050] transition-colors">{title}</p>
+        <h3 className={`text-2xl md:text-3xl font-serif ${text}`}>{value}</h3>
         {sub && <p className="text-xs text-slate-400 mt-1 font-medium italic">{sub}</p>}
+        {trend !== undefined && (
+            <div className={`flex items-center gap-1 mt-1 text-xs font-bold ${trend >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingUp className="w-3 h-3 rotate-180" />}
+                {Math.abs(trend).toFixed(1)}%
+            </div>
+        )}
       </div>
-      <div className={`p-4 rounded-2xl ${bg} shadow-inner`}>
+      <div className={`p-3 rounded-2xl ${bg} shadow-inner group-hover:scale-110 transition-transform`}>
         {icon}
       </div>
     </div>

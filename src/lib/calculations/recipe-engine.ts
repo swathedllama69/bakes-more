@@ -5,13 +5,13 @@ export async function calculateMaterials(recipeId: string, quantity: number) {
     const { data: recipeData, error } = await supabase
         .from('recipe_ingredients')
         .select(`
-      quantity_required,
+      amount_grams_ml,
       ingredients (
         name,
         current_stock,
         unit,
-        cost_per_purchase_unit,
-        purchase_unit_quantity
+        purchase_price,
+        purchase_quantity
       )
     `)
         .eq('recipe_id', recipeId);
@@ -20,11 +20,11 @@ export async function calculateMaterials(recipeId: string, quantity: number) {
 
     // 2. Perform the 'Explosion' math
     const report = recipeData.map((item: any) => {
-        const totalNeeded = item.quantity_required * quantity;
+        const totalNeeded = item.amount_grams_ml * quantity;
         const stockShortfall = Math.max(0, totalNeeded - item.ingredients.current_stock);
 
         // Calculate cost per gram/ml to find restocking cost
-        const costPerUnit = item.ingredients.cost_per_purchase_unit / item.ingredients.purchase_unit_quantity;
+        const costPerUnit = item.ingredients.purchase_price / item.ingredients.purchase_quantity;
         const restockCost = stockShortfall * costPerUnit;
 
         return {

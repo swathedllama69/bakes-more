@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { getPackagingSize } from "@/lib/constants/bakery";
 import { calculateJobCost, ProductionSummary, ProductionItem } from "@/lib/calculations/production";
-import { Printer, Save, RefreshCw, Plus, Trash2, AlertTriangle, CheckCircle, Edit, Calculator as CalcIcon, CircleDollarSign, Wheat, Egg, Milk, Croissant, Cookie, FileText } from "lucide-react";
+import { Printer, Save, RefreshCw, Plus, Trash2, AlertTriangle, CheckCircle, Edit, Calculator as CalcIcon, Banknote, Wheat, Egg, Milk, Croissant, Cookie, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
@@ -267,7 +267,7 @@ export default function QuoteCalculator() {
                         <span className="hidden md:inline">Saved Quotes</span>
                     </Link>
                     <Link href="/estimator" className="flex items-center gap-2 bg-white text-slate-600 px-4 py-3 rounded-xl font-bold shadow-sm border border-[#E8ECE9] hover:bg-[#FAFAFA] transition-colors">
-                        <CircleDollarSign className="w-5 h-5" />
+                        <Banknote className="w-5 h-5" />
                         <span className="hidden md:inline">Custom Estimates</span>
                     </Link>
                     <PDFDownloadLink
@@ -285,7 +285,7 @@ export default function QuoteCalculator() {
                             />
                         }
                         fileName={`Quote-${customerName || 'Draft'}.pdf`}
-                        className="p-3 bg-white border border-[#E8ECE9] rounded-xl text-slate-400 hover:text-purple-500 hover:border-purple-200 transition-all shadow-sm flex items-center justify-center"
+                        className="p-3 bg-white border border-[#E8ECE9] rounded-xl text-slate-400 hover:text-[#B03050] hover:border-[#B03050] transition-all shadow-sm flex items-center justify-center"
                         title="Download Quote"
                     >
                         {({ loading }) => (
@@ -387,7 +387,7 @@ export default function QuoteCalculator() {
                     {/* 2. Custom Extras */}
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9] space-y-4">
                         <div className="flex items-center gap-3 mb-2">
-                            <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
+                            <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center text-orange-600">
                                 <Plus className="w-4 h-4" />
                             </div>
                             <h2 className="text-sm font-bold uppercase text-slate-400 tracking-wider">Custom Add-ons</h2>
@@ -552,7 +552,7 @@ export default function QuoteCalculator() {
                                                 </td>
                                                 <td className="p-4 text-xs print:p-2">
                                                     <span className={`px-2 py-1 rounded-full font-bold print:border print:bg-transparent ${item.type === 'Overhead' ? 'bg-yellow-100 text-yellow-700' :
-                                                        item.type === 'Packaging' ? 'bg-purple-100 text-purple-700' :
+                                                        item.type === 'Packaging' ? 'bg-indigo-100 text-indigo-700' :
                                                             item.type === 'Adjustment' ? 'bg-blue-100 text-blue-700' :
                                                                 'bg-slate-100 text-slate-500'
                                                         }`}>

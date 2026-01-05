@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Calculator, ShoppingBag, ChefHat, Package, Settings, CalendarDays, ScrollText, Users, CircleDollarSign, LogOut, FileText } from "lucide-react";
+import { LayoutDashboard, Calculator, ShoppingBag, ChefHat, Package, Settings, CalendarDays, ScrollText, Users, CircleDollarSign, LogOut, FileText, Timer } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 
 export default function Sidebar() {
@@ -26,22 +26,22 @@ export default function Sidebar() {
     return (
         <aside className={`
             hidden md:flex fixed inset-y-0 left-0 z-40 bg-white border-r border-slate-100 flex-col justify-between transition-all duration-300 shadow-2xl shadow-slate-200/50
-            md:w-24 lg:w-72
+            md:w-24 lg:w-64
         `}>
             <div>
                 {/* Logo Section */}
-                <div className="h-64 flex flex-col items-center justify-center border-b border-slate-50 gap-4 p-6 bg-gradient-to-b from-white to-pink-50/30">
-                    <div className="relative w-32 h-32 lg:w-40 lg:h-40 drop-shadow-2xl hover:scale-105 transition-transform duration-500 ease-out">
+                <div className="flex flex-col items-center justify-center border-b border-slate-50 gap-3 p-6 bg-gradient-to-b from-white to-pink-50/30">
+                    <div className="relative w-20 h-20 lg:w-28 lg:h-28 drop-shadow-xl hover:scale-105 transition-transform duration-500 ease-out">
                         <Image src="/logo.png" alt="Logo" fill className="object-contain" priority />
                     </div>
-                    <div className="text-center w-full space-y-1 hidden lg:block">
-                        <span className="text-xl text-[#B03050] tracking-[0.25em] uppercase font-bold">Bakes & More</span>
-                        <span className="text-3xl text-slate-400 font-['Great_Vibes'] transform -rotate-3 translate-x-4">By Hafsaa</span>
+                    <div className="w-full hidden lg:block">
+                        <h1 className="text-lg text-[#B03050] tracking-widest uppercase font-bold text-center">Bakes & More</h1>
+                        <p className="text-2xl text-slate-400 font-['Great_Vibes'] text-right pr-2">By Hafsaa</p>
                     </div>
                 </div>
 
                 {/* Navigation */}
-                <nav className="p-4 lg:p-6 space-y-2 overflow-y-auto max-h-[calc(100vh-200px)]">
+                <nav className="p-3 lg:p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-200px)]">
                     <NavItem
                         href="/dashboard"
                         icon={<LayoutDashboard className="w-5 h-5" />}
@@ -72,6 +72,12 @@ export default function Sidebar() {
                         label="Calculator"
                         active={isActive('/Calculator')}
                     />
+                    <NavItem
+                        href="/timer"
+                        icon={<Timer className="w-5 h-5" />}
+                        label="Timer"
+                        active={isActive('/timer')}
+                    />
                     <NavItem href="/recipes"
                         icon={<ChefHat className="w-5 h-5" />}
                         label="Recipe Creator"
@@ -87,23 +93,21 @@ export default function Sidebar() {
             </div>
 
             {/* Footer / Settings */}
-            <div className="p-4 lg:p-6 border-t border-slate-50 space-y-2 bg-white">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                    <NavItem href="/reports"
-                        icon={<CircleDollarSign className="w-5 h-5" />}
-                        label="Reports"
-                        active={isActive('/reports')}
-                    />
-                    <NavItem
-                        href="/settings"
-                        icon={<Settings className="w-5 h-5" />}
-                        label="Settings"
-                        active={isActive('/settings')}
-                    />
-                </div>
+            <div className="p-3 lg:p-4 border-t border-slate-50 space-y-1 bg-white">
+                <NavItem href="/reports"
+                    icon={<CircleDollarSign className="w-5 h-5" />}
+                    label="Reports"
+                    active={isActive('/reports')}
+                />
+                <NavItem
+                    href="/settings"
+                    icon={<Settings className="w-5 h-5" />}
+                    label="Settings"
+                    active={isActive('/settings')}
+                />
                 <button
                     onClick={handleLogout}
-                    className="w-full flex items-center justify-center lg:justify-start gap-3 p-4 rounded-2xl transition-all duration-200 text-slate-400 hover:bg-red-50 hover:text-red-500 group"
+                    className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-red-50 hover:text-red-500 group"
                 >
                     <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform" />
                     <span className="hidden lg:block font-bold text-sm tracking-wide">Logout</span>
@@ -118,19 +122,19 @@ function NavItem({ href, icon, label, active }: { href: string; icon: React.Reac
         <Link
             href={href}
             className={`
-                flex items-center justify-center lg:justify-start gap-3 p-4 rounded-2xl transition-all duration-200 group relative overflow-hidden
+                flex items-center justify-center lg:justify-start gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden
                 ${active
-                    ? 'bg-[#B03050] text-white shadow-lg shadow-pink-200'
-                    : 'text-slate-400 hover:bg-pink-50 hover:text-[#B03050]'
+                    ? 'bg-[#B03050] text-white shadow-md shadow-pink-200'
+                    : 'text-slate-500 hover:bg-pink-50 hover:text-[#B03050]'
                 }
             `}
         >
             {/* Active Indicator Dot */}
             {active && (
-                <div className="absolute right-3 w-2 h-2 bg-white rounded-full shadow-sm animate-pulse hidden lg:block" />
+                <div className="absolute right-3 w-1.5 h-1.5 bg-white rounded-full shadow-sm hidden lg:block" />
             )}
 
-            <span className={`transition-transform duration-300 ${active ? 'scale-110' : 'group-hover:scale-110'}`}>
+            <span className={`transition-transform duration-300 ${active ? 'scale-105' : 'group-hover:scale-110'}`}>
                 {icon}
             </span>
             <span className={`hidden lg:block font-bold text-sm tracking-wide ${active ? 'text-white' : ''}`}>

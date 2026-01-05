@@ -10,6 +10,7 @@ import { getPackagingSize } from "@/lib/constants/bakery";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import dynamic from "next/dynamic";
 import InvoicePDF from '@/components/pdf/InvoicePDF';
+import { OrderConfirmationTemplate } from "@/lib/email-templates";
 
 const PDFDownloadLink = dynamic(
     () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
@@ -259,23 +260,7 @@ export default function OrderDetailsPage() {
                                     body: JSON.stringify({
                                         to: order.customer_email,
                                         subject: `Order Confirmation #${order.id.slice(0, 8)}`,
-                                        html: `
-                                            <div style="font-family: sans-serif; color: #333;">
-                                                <h1 style="color: #B03050;">Order Confirmed!</h1>
-                                                <p>Hi <strong>${order.customer_name}</strong>,</p>
-                                                <p>We are excited to confirm your order! It is now being processed.</p>
-                                                
-                                                <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                                                    <p style="margin: 5px 0;"><strong>Order ID:</strong> #${order.id.slice(0, 8)}</p>
-                                                    <p style="margin: 5px 0;"><strong>Total Amount:</strong> ₦${(order.total_price || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                                                    <p style="margin: 5px 0;"><strong>Delivery Date:</strong> ${new Date(order.delivery_date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                                                </div>
-
-                                                <p>We will notify you when your order is ready.</p>
-                                                <br/>
-                                                <p>Warm regards,<br/><strong>Bakes & More</strong></p>
-                                            </div>
-                                        `
+                                        html: OrderConfirmationTemplate(order)
                                     })
                                 });
                                 alert(`Order Confirmed! Email sent to ${order.customer_email}.`);

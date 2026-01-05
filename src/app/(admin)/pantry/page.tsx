@@ -438,7 +438,7 @@ export default function PantryPage() {
 
                     {/* Stock List (Desktop Table / Mobile Cards) */}
                     <div className="bg-white rounded-[2rem] border border-[#E8ECE9] shadow-sm overflow-hidden">
-                        
+
                         {/* Desktop Table */}
                         <div className="hidden md:block overflow-x-auto">
                             <table className="w-full">
@@ -545,11 +545,11 @@ export default function PantryPage() {
 
                         {/* Mobile Cards */}
                         <div className="md:hidden divide-y divide-[#E8ECE9]">
-                             {loadingStock ? (
+                            {loadingStock ? (
                                 <div className="p-6 text-center text-slate-400">Loading...</div>
-                             ) : filteredIngredients.length === 0 ? (
+                            ) : filteredIngredients.length === 0 ? (
                                 <div className="p-6 text-center text-slate-400">No ingredients found.</div>
-                             ) : (
+                            ) : (
                                 paginatedIngredients.map((item) => (
                                     <div key={item.id} className="p-4 space-y-3">
                                         <div className="flex justify-between items-start">
@@ -561,14 +561,14 @@ export default function PantryPage() {
                                                 {item.category}
                                             </span>
                                         </div>
-                                        
+
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-1">
                                                 <button onClick={() => updateStock(item.id, Math.max(0, item.current_stock - 100))} className="w-8 h-8 flex items-center justify-center rounded-md bg-white shadow-sm text-slate-600">-</button>
                                                 <span className="text-sm font-bold w-12 text-center">{item.current_stock}<span className="text-xs text-slate-400 ml-0.5">{item.unit}</span></span>
                                                 <button onClick={() => updateStock(item.id, item.current_stock + 100)} className="w-8 h-8 flex items-center justify-center rounded-md bg-white shadow-sm text-slate-600">+</button>
                                             </div>
-                                            
+
                                             <div className="flex gap-2">
                                                 <button onClick={() => { setEditingIngredient(item); setIsEditModalOpen(true); }} className="p-2 bg-slate-50 text-slate-500 rounded-lg"><Pencil className="w-4 h-4" /></button>
                                                 <button onClick={() => deleteIngredient(item.id)} className="p-2 bg-red-50 text-red-500 rounded-lg"><Trash2 className="w-4 h-4" /></button>
@@ -582,7 +582,7 @@ export default function PantryPage() {
                                         )}
                                     </div>
                                 ))
-                             )}
+                            )}
                         </div>
                     </div>
 

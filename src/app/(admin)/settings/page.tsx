@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Save, Building2, Wallet, AlertTriangle, Loader2, Tags, Pencil, Check, X, Lock, Zap, Flame, Clock, User } from "lucide-react";
+import Seeder from "@/components/Seeder";
 
 export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
@@ -332,6 +333,9 @@ export default function SettingsPage() {
                             ))}
                         </div>
                     </div>
+
+                    {/* Database Seeder */}
+                    <Seeder />
                 </div>
 
             </div>

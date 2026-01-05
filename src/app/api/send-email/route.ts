@@ -13,8 +13,7 @@ export async function POST(request: Request) {
         }
 
         const data = await resend.emails.send({
-            // Use 'onboarding@resend.dev' for testing. Once you verify your domain in Resend, change this to 'orders@yourdomain.com'
-            from: 'Bakes & More <onboarding@resend.dev>',
+            from: 'Bakes & More <orders@bakesandmore.com.ng>',
             to: [to],
             subject: subject,
             html: html,

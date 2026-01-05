@@ -15,7 +15,7 @@ export default function MobileHeader() {
                 </div>
                 <span className="text-lg font-bold text-[#B03050] tracking-widest uppercase">Bakes & More</span>
             </div>
-            <button 
+            <button
                 onClick={toggleAIChat}
                 className={`p-2 rounded-full relative transition-colors ${isAIChatOpen ? 'bg-[#B03050] text-white' : 'text-slate-400 hover:bg-slate-50'}`}
             >

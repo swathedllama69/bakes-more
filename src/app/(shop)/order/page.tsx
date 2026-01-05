@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { Loader2, ShoppingBag, ChevronRight, Check, ArrowLeft, CreditCard } from "lucide-react";
 import Link from "next/link";
 import CakeModel from "@/components/cake-builder/CakeModel";
+import { NewOrderAdminTemplate, NewOrderCustomerTemplate, CustomOrderAdminTemplate } from "@/lib/email-templates";
 
 export default function OrderPage() {
     // Data State
@@ -119,7 +120,22 @@ export default function OrderPage() {
 
     const handleCustomOrderSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // In a real app, save to DB. For now, just show success.
+        
+        // Send email to admin
+        try {
+            await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: 'hafsaa@bakesandmore.com.ng', // Replace with actual admin email
+                    subject: `New Custom Order Request from ${customOrder.name}`,
+                    html: CustomOrderAdminTemplate(customOrder)
+                })
+            });
+        } catch (error) {
+            console.error("Error sending email:", error);
+        }
+
         alert("Custom order request sent! We will contact you shortly.");
         setIsCustomOrder(false);
         setCustomOrder({ name: "", phone: "", description: "", date: "", budget: "" });
@@ -261,6 +277,35 @@ export default function OrderPage() {
         if (itemError) {
             console.error("Error creating order item:", itemError);
             // We don't stop here, as the order is created. Admin can see details in notes.
+        }
+
+        // 3. Send Emails
+        try {
+            // Admin Notification
+            await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: 'hafsaa@bakesandmore.com.ng', // Replace with actual admin email
+                    subject: `New Order #${order.id.slice(0, 8)} from ${order.customer_name}`,
+                    html: NewOrderAdminTemplate(order)
+                })
+            });
+
+            // Customer Notification (if email provided)
+            if (order.customer_email) {
+                await fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: order.customer_email,
+                        subject: 'We received your order! 🎂',
+                        html: NewOrderCustomerTemplate(order)
+                    })
+                });
+            }
+        } catch (emailError) {
+            console.error("Error sending emails:", emailError);
         }
 
         setOrderSubmitted(true);

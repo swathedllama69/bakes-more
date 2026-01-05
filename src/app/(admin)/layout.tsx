@@ -2,6 +2,7 @@ import Sidebar from "@/components/Sidebar";
 import MobileNav from "@/components/MobileNav";
 import MobileHeader from "@/components/MobileHeader";
 import TheOrb from "@/components/ai/TheOrb";
+import Greetings from "@/components/Greetings";
 
 export default function AdminLayout({
   children,
@@ -18,12 +19,13 @@ export default function AdminLayout({
       <MobileNav />
 
       {/* Main Content Area */}
-      <main className="flex-1 md:ml-20 lg:ml-72 min-h-screen pt-16 pb-24 md:pt-0 md:pb-0">
+      <main className="flex-1 md:ml-20 lg:ml-64 min-h-screen pt-16 pb-24 md:pt-0 md:pb-0">
         {children}
       </main>
 
       {/* AI Assistant */}
       <TheOrb />
+      <Greetings />
     </div>
   );
 }
