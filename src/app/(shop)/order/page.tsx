@@ -8,6 +8,7 @@ import { Loader2, ShoppingBag, ChevronRight, Check, ArrowLeft, CreditCard } from
 import Link from "next/link";
 import CakeModel from "@/components/cake-builder/CakeModel";
 import { NewOrderAdminTemplate, NewOrderCustomerTemplate, CustomOrderAdminTemplate } from "@/lib/email-templates";
+import { getAdminEmail } from "@/lib/settings";
 
 export default function OrderPage() {
     // Data State
@@ -121,13 +122,15 @@ export default function OrderPage() {
     const handleCustomOrderSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        const adminEmail = await getAdminEmail();
+
         // Send email to admin
         try {
             await fetch('/api/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    to: 'hafsaa@bakesandmore.com.ng', // Replace with actual admin email
+                    to: adminEmail,
                     subject: `New Custom Order Request from ${customOrder.name}`,
                     html: CustomOrderAdminTemplate(customOrder)
                 })
@@ -279,14 +282,16 @@ export default function OrderPage() {
             // We don't stop here, as the order is created. Admin can see details in notes.
         }
 
-        // 3. Send Emails
-        try {
+        // 3const adminEmail = await getAdminEmail();
+            
             // Admin Notification
             await fetch('/api/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    to: 'hafsaa@bakesandmore.com.ng', // Replace with actual admin email
+                    to: adminEmail'application/json' },
+                body: JSON.stringify({
+                    to: BAKERY_EMAILS.ADMIN,
                     subject: `New Order #${order.id.slice(0, 8)} from ${order.customer_name}`,
                     html: NewOrderAdminTemplate(order)
                 })

@@ -10,6 +10,11 @@ export const SIZE_MULTIPLIERS: Record<number, number> = {
     14: 6.0
 };
 
+export const BAKERY_EMAILS = {
+    ADMIN: 'aliyuiliyasu16@gmail.com', // Update this to your admin email
+    SENDER: 'orders@bakesandmore.com.ng'
+};
+
 export const getPackagingSize = (cakeSize: number): number => {
     if (cakeSize <= 6) return 8;
     if (cakeSize <= 8) return 10;

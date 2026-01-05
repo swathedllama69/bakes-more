@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
+import { BAKERY_EMAILS } from '@/lib/constants/bakery';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
         }
 
         const data = await resend.emails.send({
-            from: 'Bakes & More <orders@bakesandmore.com.ng>',
+            from: `Bakes & More <${BAKERY_EMAILS.SENDER}>`,
             to: [to],
             subject: subject,
             html: html,
