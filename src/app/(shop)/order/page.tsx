@@ -282,16 +282,16 @@ export default function OrderPage() {
             // We don't stop here, as the order is created. Admin can see details in notes.
         }
 
-        // 3const adminEmail = await getAdminEmail();
+        // 3. Send Emails
+        try {
+            const adminEmail = await getAdminEmail();
             
             // Admin Notification
             await fetch('/api/send-email', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    to: adminEmail'application/json' },
-                body: JSON.stringify({
-                    to: BAKERY_EMAILS.ADMIN,
+                    to: adminEmail,
                     subject: `New Order #${order.id.slice(0, 8)} from ${order.customer_name}`,
                     html: NewOrderAdminTemplate(order)
                 })
