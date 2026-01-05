@@ -43,7 +43,7 @@ export const NewOrderAdminTemplate = (order: any) => `
       <h1>New Order Received! 🎉</h1>
     </div>
     <div class="content">
-      <p>Hi Hafsaa,</p>
+      <p>Hi Hafsat,</p>
       <p>You have received a new order from the website.</p>
       
       <div class="order-details">
@@ -176,7 +176,7 @@ export const CustomOrderAdminTemplate = (data: any) => `
       <h1>New Custom Request! 🎨</h1>
     </div>
     <div class="content">
-      <p>Hi Hafsaa,</p>
+      <p>Hi Hafsat,</p>
       <p>You have received a new <strong>Custom Order Request</strong>.</p>
       
       <div class="order-details">

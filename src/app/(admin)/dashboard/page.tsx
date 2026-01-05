@@ -216,7 +216,7 @@ export default function Dashboard() {
       {/* Header Section */}
       <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-4xl md:text-5xl font-serif text-[#B03050] mb-3 tracking-tight">{greeting}, Hafsaa</h1>
+          <h1 className="text-4xl md:text-5xl font-serif text-[#B03050] mb-3 tracking-tight">{greeting}, Hafsat</h1>
           <div className="flex items-center gap-2 text-slate-500">
             <span className="bg-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border border-slate-100 shadow-sm">
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
