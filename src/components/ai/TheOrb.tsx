@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import { Sparkles, MessageSquare, X, Send, BrainCircuit, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { prepareDailyBriefingData } from "@/lib/ai/sanitizer";
+import { useUIStore } from "@/lib/store/ui-store";
 
 export default function TheOrb() {
-    const [isOpen, setIsOpen] = useState(false);
+    const { isAIChatOpen, toggleAIChat, closeAIChat } = useUIStore();
     const [isHovered, setIsHovered] = useState(false);
     const [messages, setMessages] = useState<{ role: 'ai' | 'user', text: string }[]>([]);
     const [input, setInput] = useState("");
@@ -68,8 +69,6 @@ export default function TheOrb() {
         }
     };
 
-    const toggleOpen = () => setIsOpen(!isOpen);
-
     const handleSend = async () => {
         if (!input.trim()) return;
 
@@ -111,24 +110,24 @@ export default function TheOrb() {
     };
 
     return (
-        <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end font-sans">
+        <div className={`fixed z-50 flex flex-col items-end font-sans ${isAIChatOpen ? 'inset-0 md:inset-auto md:bottom-8 md:right-8' : 'bottom-8 right-8'}`}>
 
             {/* Chat Window */}
-            {isOpen && (
-                <div className="mb-4 w-80 md:w-96 bg-white rounded-2xl shadow-2xl border border-[#E8ECE9] overflow-hidden flex flex-col animate-in slide-in-from-bottom-10 fade-in duration-200">
+            {isAIChatOpen && (
+                <div className="w-full h-full md:h-auto md:mb-4 md:w-96 bg-white md:rounded-2xl shadow-2xl border border-[#E8ECE9] overflow-hidden flex flex-col animate-in slide-in-from-bottom-10 fade-in duration-200">
                     {/* Header */}
-                    <div className="bg-[#B03050] p-4 flex justify-between items-center text-white">
+                    <div className="bg-[#B03050] p-4 flex justify-between items-center text-white shrink-0">
                         <div className="flex items-center gap-2">
                             <BrainCircuit className="w-5 h-5" />
                             <span className="font-bold font-serif">Bakery Intelligence</span>
                         </div>
-                        <button onClick={toggleOpen} className="hover:bg-white/20 p-1 rounded-full transition-colors">
+                        <button onClick={closeAIChat} className="hover:bg-white/20 p-1 rounded-full transition-colors">
                             <X className="w-4 h-4" />
                         </button>
                     </div>
 
                     {/* Messages */}
-                    <div className="h-80 overflow-y-auto p-4 space-y-4 bg-[#FDFBF7]">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#FDFBF7] md:h-80">
                         {messages.map((msg, idx) => (
                             <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[85%] p-3 rounded-2xl text-sm whitespace-pre-wrap ${msg.role === 'user'
@@ -150,7 +149,7 @@ export default function TheOrb() {
                     </div>
 
                     {/* Input */}
-                    <div className="p-3 bg-white border-t border-[#E8ECE9] flex gap-2">
+                    <div className="p-3 bg-white border-t border-[#E8ECE9] flex gap-2 shrink-0 pb-safe md:pb-3">
                         <input
                             type="text"
                             value={input}
@@ -169,27 +168,27 @@ export default function TheOrb() {
                 </div>
             )}
 
-            {/* The Orb Trigger */}
+            {/* The Orb Trigger (Desktop Only) */}
             <button
-                onClick={toggleOpen}
+                onClick={toggleAIChat}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
-                className={`relative group flex items-center justify-center w-16 h-16 rounded-full shadow-lg transition-all duration-300 ${isOpen ? 'bg-white text-[#B03050] rotate-90' : 'bg-[#B03050] text-white hover:scale-110'
+                className={`hidden md:flex relative group items-center justify-center w-16 h-16 rounded-full shadow-lg transition-all duration-300 ${isAIChatOpen ? 'bg-white text-[#B03050] rotate-90' : 'bg-[#B03050] text-white hover:scale-110'
                     }`}
             >
                 {/* Pulse Effect */}
-                {!isOpen && (
+                {!isAIChatOpen && (
                     <span className="absolute inline-flex h-full w-full rounded-full bg-[#B03050] opacity-20 animate-ping"></span>
                 )}
 
-                {isOpen ? (
+                {isAIChatOpen ? (
                     <X className="w-8 h-8" />
                 ) : (
                     <Sparkles className="w-8 h-8 animate-pulse" />
                 )}
 
                 {/* Tooltip */}
-                {!isOpen && isHovered && (
+                {!isAIChatOpen && isHovered && (
                     <div className="absolute right-20 bg-white text-slate-700 px-4 py-2 rounded-xl shadow-lg border border-[#E8ECE9] whitespace-nowrap font-bold text-sm animate-in slide-in-from-right-2">
                         Ask the Assistant
                     </div>
