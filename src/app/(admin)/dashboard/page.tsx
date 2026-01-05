@@ -99,7 +99,10 @@ export default function Dashboard() {
       const today = new Date().toISOString().split('T')[0];
       const dueToday = orders.filter(o => o.due_date === today && o.status !== 'Delivered' && o.status !== 'Cancelled');
       const dueTomorrow = orders.filter(o => {
+        if (!o.due_date) return false;
         const d = new Date(o.due_date);
+        if (isNaN(d.getTime())) return false;
+        
         const t = new Date();
         t.setDate(t.getDate() + 1);
         return d.toISOString().split('T')[0] === t.toISOString().split('T')[0] && o.status !== 'Delivered';

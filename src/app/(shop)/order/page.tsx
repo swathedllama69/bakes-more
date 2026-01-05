@@ -285,7 +285,7 @@ export default function OrderPage() {
         // 3. Send Emails
         try {
             const adminEmail = await getAdminEmail();
-            
+
             // Admin Notification
             await fetch('/api/send-email', {
                 method: 'POST',

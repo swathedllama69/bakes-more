@@ -46,7 +46,7 @@ export default function SettingsPage() {
             .select('value')
             .eq('key', 'admin_email')
             .single();
-        
+
         if (data) setAdminEmail(data.value);
     };
 
@@ -111,7 +111,7 @@ export default function SettingsPage() {
 
     const handleSave = async () => {
         setSaving(true);
-        
+
         // Save Standard Settings
         const { error } = await supabase
             .from("settings")
