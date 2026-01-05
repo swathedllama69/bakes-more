@@ -111,14 +111,24 @@ export default function SettingsPage() {
 
     const handleSave = async () => {
         setSaving(true);
+        
+        // Save Standard Settings
         const { error } = await supabase
             .from("settings")
             .upsert(settings);
+
+        // Save App Settings (Admin Email)
+        if (adminEmail) {
+            await supabase
+                .from('app_settings')
+                .upsert({ key: 'admin_email', value: adminEmail }, { onConflict: 'key' });
+        }
 
         if (error) {
             alert("Error saving settings: " + error.message);
         } else {
             // Show success feedback (could be a toast, but alert is fine for now)
+            alert("Settings saved successfully!");
         }
         setSaving(false);
     };
