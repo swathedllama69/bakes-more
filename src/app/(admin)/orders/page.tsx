@@ -5,6 +5,13 @@ import Link from "next/link";
 import { CalendarDays, Search, Plus, Clock, ChevronDown, ChevronUp, CheckCircle, Printer, Trash2, MoreHorizontal, ArrowRight, Mail } from "lucide-react";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { OrderConfirmationTemplate, PaymentReceivedTemplate } from "@/lib/email-templates";
+import dynamic from "next/dynamic";
+import InvoicePDF from "@/components/pdf/InvoicePDF";
+
+const PDFDownloadLink = dynamic(
+    () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
+    { ssr: false }
+);
 
 export default function OrderManager() {
     const [orders, setOrders] = useState<any[]>([]);
@@ -15,6 +22,7 @@ export default function OrderManager() {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
     const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+    const [accountDetails, setAccountDetails] = useState<string>("");
 
     // Modal State
     const [modalConfig, setModalConfig] = useState<{
@@ -22,13 +30,25 @@ export default function OrderManager() {
         title: string;
         message: string;
         type: 'danger' | 'success' | 'info';
+        confirmText?: string;
+        cancelText?: string;
         onConfirm: () => void;
     }>({ isOpen: false, title: '', message: '', type: 'info', onConfirm: () => { } });
 
 
     useEffect(() => {
         fetchOrders();
+        fetchAccountDetails();
     }, []);
+
+    const fetchAccountDetails = async () => {
+         const { data } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'account_details')
+            .single();
+        if (data) setAccountDetails(data.value);
+    }
 
     const fetchOrders = async () => {
         const { data } = await supabase
@@ -376,6 +396,20 @@ export default function OrderManager() {
                                                     `${item.quantity}x ${Array.isArray(item.recipes) ? item.recipes[0]?.name : item.recipes?.name || "Custom Cake"}`
                                                 ).join(", ")}
                                             </span>
+                                            <div className="flex gap-2 justify-end mt-1 md:hidden"> {/* Mobile Invoice Link */}
+                                                 <PDFDownloadLink
+                                                    document={<InvoicePDF order={{ ...order, account_details: accountDetails }} />}
+                                                    fileName={`invoice-${order.id}.pdf`}
+                                                    className="text-xs font-bold text-[#B03050] hover:underline flex items-center gap-1"
+                                                >
+                                                    {({ loading }) => (
+                                                        <>
+                                                            <Printer className="w-3 h-3" />
+                                                            {loading ? '...' : 'Invoice'}
+                                                        </>
+                                                    )}
+                                                </PDFDownloadLink>
+                                            </div>
                                         </div>
                                     </div>
 

@@ -6,7 +6,7 @@ import { Cylinder, MeshDistortMaterial } from "@react-three/drei";
 import * as THREE from "three";
 
 interface CakeModelProps {
-    shape: 'round' | 'square';
+    shape: 'round' | 'square' | 'heart';
     size: number;
     layers: number;
     color: string;
@@ -14,6 +14,7 @@ interface CakeModelProps {
 
 export default function CakeModel({ shape, size, layers, color }: CakeModelProps) {
     const group = useRef<THREE.Group>(null);
+
 
     // Animation: Gentle float/rotation
     useFrame((state) => {
@@ -32,7 +33,7 @@ export default function CakeModel({ shape, size, layers, color }: CakeModelProps
             {Array.from({ length: layers }).map((_, i) => (
                 <group key={i} position={[0, (i * layerHeight) - ((layers * layerHeight) / 2) + (layerHeight / 2), 0]}>
                     {/* Cake Layer */}
-                    {shape === 'round' ? (
+                    {shape !== 'square' ? (
                         <Cylinder args={[radius, radius, layerHeight - 0.02, 64]}>
                             <meshStandardMaterial
                                 color={color}
@@ -53,7 +54,7 @@ export default function CakeModel({ shape, size, layers, color }: CakeModelProps
 
                     {/* Filling/Frosting between layers (except top) */}
                     {i < layers - 1 && (
-                        shape === 'round' ? (
+                        shape !== 'square' ? (
                             <Cylinder
                                 position={[0, layerHeight / 2, 0]}
                                 args={[radius - 0.05, radius - 0.05, 0.02, 64]}

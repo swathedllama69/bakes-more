@@ -35,16 +35,31 @@ export default function OrderDetailsPage() {
         title: string;
         message: string;
         type: 'danger' | 'success' | 'info';
+        confirmText?: string;
+        cancelText?: string;
         onConfirm: () => void;
     }>({ isOpen: false, title: '', message: '', type: 'info', onConfirm: () => { } });
 
     // Custom Adjustment State
     const [customAdjName, setCustomAdjName] = useState("");
     const [customAdjCost, setCustomAdjCost] = useState(0);
+    const [accountDetails, setAccountDetails] = useState<string>("");
 
     useEffect(() => {
-        if (id) fetchOrderDetails();
+        if (id) {
+            fetchOrderDetails();
+            fetchAccountDetails();
+        }
     }, [id]);
+
+    const fetchAccountDetails = async () => {
+         const { data } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'account_details')
+            .single();
+        if (data) setAccountDetails(data.value);
+    }
 
     const fetchOrderDetails = async () => {
         // 1. Get Order & Items
@@ -367,6 +382,18 @@ export default function OrderDetailsPage() {
                                 <option value="Cancelled">Cancelled</option>
                             </select>
                         </div>
+                        <PDFDownloadLink
+                            document={<InvoicePDF order={{ ...order, account_details: accountDetails }} />}
+                            fileName={`invoice-${order.id}.pdf`}
+                            className="text-xs font-bold text-[#B03050] hover:underline flex items-center gap-1 mt-1 cursor-pointer"
+                        >
+                            {({ loading }) => (
+                                <>
+                                    <Printer className="w-3 h-3" />
+                                    {loading ? '...' : 'Download Invoice'}
+                                </>
+                            )}
+                        </PDFDownloadLink>
                         <p className="text-slate-400 font-medium flex items-center gap-2 mt-1">
                             {order.customer_id ? (
                                 <Link href={`/customers?id=${order.customer_id}`} className="hover:text-[#B03050] hover:underline transition-colors">
