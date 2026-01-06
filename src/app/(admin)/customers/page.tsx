@@ -7,10 +7,27 @@ import { supabase } from "@/lib/supabase";
 import { Search, Plus, Phone, MapPin, User, Edit, Trash2, Save, X, FileText, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
 
 function CustomersContent() {
     const searchParams = useSearchParams();
     const initialId = searchParams.get('id');
+
+    const [modalConfig, setModalConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type?: 'danger' | 'success' | 'info';
+        onConfirm: () => void;
+        confirmText?: string;
+        cancelText?: string;
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        type: "info",
+        onConfirm: () => { },
+    });
 
     const [customers, setCustomers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -69,19 +86,44 @@ function CustomersContent() {
     };
 
     const handleSave = async () => {
-        if (!formData.full_name) return alert("Name is required");
+        if (!formData.full_name) {
+            setModalConfig({
+                isOpen: true,
+                title: "Validation Error",
+                message: "Name is required",
+                type: "danger",
+                onConfirm: () => {}
+            });
+            return;
+        }
 
         if (editingCustomer) {
             const { error } = await supabase
                 .from("customers")
                 .update(formData)
                 .eq("id", editingCustomer.id);
-            if (error) alert("Error updating customer");
+            if (error) {
+                setModalConfig({
+                    isOpen: true,
+                    title: "Error",
+                    message: "Error updating customer",
+                    type: "danger",
+                    onConfirm: () => {}
+                });
+            }
         } else {
             const { error } = await supabase
                 .from("customers")
                 .insert([formData]);
-            if (error) alert("Error creating customer");
+            if (error) {
+                setModalConfig({
+                    isOpen: true,
+                    title: "Error",
+                    message: "Error creating customer",
+                    type: "danger",
+                    onConfirm: () => {}
+                });
+            }
         }
 
         setIsModalOpen(false);
@@ -103,9 +145,17 @@ function CustomersContent() {
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm("Are you sure? This will not delete their past orders.")) return;
-        const { error } = await supabase.from("customers").delete().eq("id", id);
-        if (!error) fetchCustomers();
+        setModalConfig({
+            isOpen: true,
+            title: "Delete Customer",
+            message: "Are you sure? This will not delete their past orders.",
+            type: "danger",
+            confirmText: "Delete",
+            onConfirm: async () => {
+                const { error } = await supabase.from("customers").delete().eq("id", id);
+                if (!error) fetchCustomers();
+            }
+        });
     };
 
     const filteredCustomers = customers.filter(c =>
@@ -352,6 +402,16 @@ function CustomersContent() {
                     </div>
                 </div>
             )}
+            <ConfirmationModal
+                isOpen={modalConfig.isOpen}
+                onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                type={modalConfig.type}
+                onConfirm={modalConfig.onConfirm}
+                confirmText={modalConfig.confirmText}
+                cancelText={modalConfig.cancelText}
+            />
         </div>
     );
 }

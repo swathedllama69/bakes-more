@@ -22,11 +22,10 @@ const getFooterContent = () => `
       </div>
       <p><strong>Bakes & More</strong> - Crafted with Love</p>
       <p>
-        <a href="https://instagram.com/bakesandmore" style="color: #B03050; text-decoration: none; margin: 0 5px;">Instagram</a> | 
-        <a href="https://facebook.com/bakesandmore" style="color: #B03050; text-decoration: none; margin: 0 5px;">Facebook</a> | 
-        <a href="https://wa.me/234800BAKERY" style="color: #B03050; text-decoration: none; margin: 0 5px;">WhatsApp</a>
+        <a href="https://www.instagram.com/bakesandmore_byhafsaa/" style="color: #B03050; text-decoration: none; margin: 0 5px;">Instagram</a> | 
+        <a href="https://wa.me/+2349015670411" style="color: #B03050; text-decoration: none; margin: 0 5px;">WhatsApp</a>
       </p>
-      <p>📞 +234 800 BAKERY | 🌐 <a href="https://bakesandmore.com.ng" style="color: #666;">bakesandmore.com.ng</a></p>
+      <p>📞 +234 901 567 0411 | 🌐 <a href="https://bakesandmore.com.ng" style="color: #666;">bakesandmore.com.ng</a></p>
       <p style="margin-top: 10px; font-size: 10px; color: #aaa;">&copy; ${new Date().getFullYear()} Bakes & More. All rights reserved.</p>
     </div>
 `;
@@ -63,6 +62,12 @@ export const NewOrderAdminTemplate = (order: any) => `
           <span class="label">Date Needed:</span>
           <span class="value">${order.due_date || 'Not specified'}</span>
         </div>
+         <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+          <span class="label">Details:</span><br/>
+          <div style="background: #fff; padding: 10px; border-radius: 6px; font-size: 13px; margin-top: 5px; white-space: pre-wrap;">
+            ${order.items_summary || order.customer_notes || 'See Dashboard'}
+          </div>
+        </div>
       </div>
 
       <p><strong>Customer Notes:</strong><br/>${order.customer_notes || 'None'}</p>
@@ -86,11 +91,12 @@ export const NewOrderCustomerTemplate = (order: any) => `
 <body>
   <div class="container">
     <div class="header">
+      <img src="https://bakesandmore.com.ng/logo.png" alt="Bakes & More" width="60" style="display: block; margin: 0 auto 10px auto;" />
       <h1>Order Received! 🎂</h1>
     </div>
     <div class="content">
       <p>Hi <strong>${order.customer_name.split(' ')[0]}</strong>,</p>
-      <p>Thank you for choosing Bakes & More! We have received your order request and are reviewing it.</p>
+      <p>Thank you for choosing Bakes & More! We have received your order request.</p>
       
       <div class="order-details">
         <div class="detail-row">
@@ -100,6 +106,12 @@ export const NewOrderCustomerTemplate = (order: any) => `
         <div class="detail-row">
           <span class="label">Estimated Total:</span>
           <span class="value">₦${(order.total_price || 0).toLocaleString()}</span>
+        </div>
+         <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+          <span class="label">Order Details:</span><br/>
+          <div style="background: #fff; padding: 10px; border-radius: 6px; font-size: 13px; margin-top: 5px; white-space: pre-wrap;">
+            ${order.items_summary || order.customer_notes || 'Custom Order'}
+          </div>
         </div>
       </div>
 
@@ -122,7 +134,7 @@ export const NewOrderCustomerTemplate = (order: any) => `
 </html>
 `;
 
-export const OrderConfirmationTemplate = (order: any) => `
+export const OrderConfirmationTemplate = (order: any, receiptUrl?: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -131,11 +143,12 @@ export const OrderConfirmationTemplate = (order: any) => `
 <body>
   <div class="container">
     <div class="header">
+        <img src="https://bakesandmore.com.ng/logo.png" alt="Bakes & More" width="60" style="display: block; margin: 0 auto 10px auto;" />
       <h1>Order Confirmed! ✅</h1>
     </div>
     <div class="content">
       <p>Hi <strong>${order.customer_name.split(' ')[0]}</strong>,</p>
-      <p>Great news! Your order has been confirmed and is now being processed.</p>
+      <p>Great news! Your order has been confirmed.</p>
       
       <div class="order-details">
         <div class="detail-row">
@@ -147,15 +160,68 @@ export const OrderConfirmationTemplate = (order: any) => `
           <span class="value">₦${(order.total_price || 0).toLocaleString()}</span>
         </div>
         <div class="detail-row">
-          <span class="label">Due Date:</span>
+          <span class="label">Delivery Date:</span>
           <span class="value">${new Date(order.due_date || order.delivery_date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
         </div>
       </div>
 
-      <p>We will notify you when your order is ready for pickup or delivery.</p>
+       ${order.account_details ? `
+        <div style="background-color: #f0fdf4; border: 1px dashed #22c55e; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin-top: 0; color: #15803d; font-weight: bold; font-size: 14px; text-transform: uppercase;">Payment Details</p>
+            <p style="font-size: 14px; line-height: 1.6; color: #166534; white-space: pre-wrap;">${order.account_details}</p>
+        </div>
+      ` : ''}
+
+       <p>To help us process your order faster, kindly upload your payment receipt using the link below:</p>
+       <div style="text-align: center; margin: 20px 0;">
+          <a href="${receiptUrl || `https://bakesandmore.com.ng/pay/${order.id}`}" style="background-color: #ffffff; border: 2px solid #B03050; color: #B03050; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">Upload Payment Proof</a>
+       </div>
+       
+      <p>We will notify you as soon as your payment is verified. Thank you for your business!</p>
       
       <div style="text-align: center;">
-        <a href="https://bakesandmore.com.ng" class="button">View Our Menu</a>
+        <a href="https://bakesandmore.com.ng" class="button">Visit our Website</a>
+      </div>
+    </div>
+    ${getFooterContent()}
+  </div>
+</body>
+</html>
+`;
+
+export const PaymentReceivedTemplate = (order: any) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>${getEmailStyles()}</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+        <img src="https://bakesandmore.com.ng/logo.png" alt="Bakes & More" width="60" style="display: block; margin: 0 auto 10px auto;" />
+      <h1>Payment Verified! 🎉</h1>
+    </div>
+    <div class="content">
+      <p>Hi <strong>${order.customer_name.split(' ')[0]}</strong>,</p>
+      <p>Thank you! We have received your payment for order <strong>#${order.id.slice(0, 8)}</strong>.</p>
+      
+      <div class="order-details">
+        <div class="detail-row">
+          <span class="label">Amount Paid:</span>
+          <span class="value">₦${(order.amount_paid || 0).toLocaleString()}</span>
+        </div>
+        <div class="detail-row">
+          <span class="label">Delivery Date:</span>
+          <span class="value">${new Date(order.delivery_date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+        </div>
+      </div>
+
+      <p>Your order is now fully confirmed and we will deliver as scheduled. We look forward to baking for you!</p>
+      
+      <p>If you have any changes or questions, kindly reach out to us.</p>
+      
+      <div style="text-align: center;">
+        <a href="https://bakesandmore.com.ng" class="button">Visit Website</a>
       </div>
     </div>
     ${getFooterContent()}

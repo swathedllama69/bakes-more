@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
 import { BAKERY_EMAILS } from '@/lib/constants/bakery';
+import { supabase } from '@/lib/supabase'; // Ensure this client is available on server side
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -19,6 +20,18 @@ export async function POST(request: Request) {
             subject: subject,
             html: html,
         });
+
+        // Log to Supabase
+        const { error: logError } = await supabase
+            .from('email_logs')
+            .insert({
+                recipient: to,
+                subject: subject,
+                html: html,
+                status: 'sent'
+            });
+
+        if (logError) console.error("Error logging email:", logError);
 
         return NextResponse.json(data);
     } catch (error) {

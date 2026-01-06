@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle, Clock, Package, ShoppingBag, AlertTriangle, Flame, DollarSign, Trash2, Edit, Plus, Printer, Save, X, ChevronDown, FileText, ChefHat } from "lucide-react";
+import { ArrowLeft, Package, Clock, ShoppingBag, AlertTriangle, Flame, DollarSign, Trash2, Edit, Plus, Printer, Save, X, ChevronDown, FileText, ChefHat, Mail, CheckCircle } from "lucide-react";
 import { calculateJobCost, ProductionSummary, ProductionItem } from "@/lib/calculations/production";
 import { getPackagingSize } from "@/lib/constants/bakery";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import dynamic from "next/dynamic";
 import InvoicePDF from '@/components/pdf/InvoicePDF';
-import { OrderConfirmationTemplate } from "@/lib/email-templates";
+import { OrderConfirmationTemplate, PaymentReceivedTemplate } from "@/lib/email-templates";
 
 const PDFDownloadLink = dynamic(
     () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
@@ -232,7 +232,15 @@ export default function OrderDetailsPage() {
             onConfirm: async () => {
                 await supabase.from("order_items").delete().eq("order_id", id);
                 const { error } = await supabase.from("orders").delete().eq("id", id);
-                if (error) alert("Error: " + error.message);
+                if (error) {
+                    setModalConfig({
+                        isOpen: true,
+                        title: "Error Deleting Order",
+                        message: "Error: " + error.message,
+                        type: "danger",
+                        onConfirm: () => {}
+                    });
+                }
                 else router.push("/orders");
             }
         });
@@ -244,40 +252,26 @@ export default function OrderDetailsPage() {
             setModalConfig({
                 isOpen: true,
                 title: "Confirm Order",
-                message: `This will confirm the order, generate an invoice, and trigger an email to ${order.customer_email || 'the customer'}. Continue?`,
-                type: 'info',
+                message: `Confirm change to Confirmed status for ${order.id.slice(0, 8)}?`,
+                type: "info",
                 onConfirm: async () => {
                     const { error } = await supabase.from("orders").update({ status: newStatus }).eq("id", id);
                     if (!error) {
-                        await fetchOrderDetails();
-
-                        // Send Confirmation Email
-                        if (order.customer_email) {
-                            try {
-                                await fetch('/api/send-email', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        to: order.customer_email,
-                                        subject: `Order Confirmation #${order.id.slice(0, 8)}`,
-                                        html: OrderConfirmationTemplate(order)
-                                    })
-                                });
-                                alert(`Order Confirmed! Email sent to ${order.customer_email}.`);
-                            } catch (e) {
-                                console.error("Failed to send email", e);
-                                alert("Order confirmed, but failed to send email.");
-                            }
-                        } else {
-                            alert("Order Confirmed! (No customer email found)");
-                        }
+                        fetchOrderDetails();
+                        setModalConfig(prev => ({ ...prev, isOpen: false }));
+                    } else {
+                        setModalConfig({
+                            isOpen: true,
+                            title: "Error",
+                            message: "Error updating status: " + error.message,
+                            type: "danger",
+                            onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+                        });
                     }
-                    setModalConfig(prev => ({ ...prev, isOpen: false }));
                 }
             });
             return;
         }
-
         const { error } = await supabase.from("orders").update({ status: newStatus }).eq("id", id);
         if (!error) fetchOrderDetails();
     };
@@ -357,15 +351,17 @@ export default function OrderDetailsPage() {
                                 onChange={(e) => updateStatus(e.target.value)}
                                 className={`px-3 py-1 rounded-full text-xs font-bold uppercase border-none outline-none cursor-pointer ${order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
                                     order.status === 'Confirmed' ? 'bg-indigo-100 text-indigo-700' :
-                                        order.status === 'Processing' || order.status === 'Baking' ? 'bg-blue-100 text-blue-700' :
-                                            order.status === 'Ready' ? 'bg-green-100 text-green-700' :
-                                                order.status === 'Delivered' ? 'bg-slate-100 text-slate-600' :
-                                                    'bg-red-50 text-red-600'
+                                        order.status === 'Processing' ? 'bg-purple-100 text-purple-700' :
+                                            order.status === 'Baking' ? 'bg-blue-100 text-blue-700' :
+                                                order.status === 'Ready' ? 'bg-green-100 text-green-700' :
+                                                    order.status === 'Delivered' ? 'bg-slate-100 text-slate-600' :
+                                                        'bg-red-50 text-red-600'
                                     }`}
                             >
                                 <option value="Pending">Pending</option>
                                 <option value="Confirmed">Confirmed</option>
                                 <option value="Processing">Processing</option>
+                                <option value="Baking">Baking</option>
                                 <option value="Ready">Ready</option>
                                 <option value="Delivered">Delivered</option>
                                 <option value="Cancelled">Cancelled</option>
@@ -390,6 +386,69 @@ export default function OrderDetailsPage() {
                         <ChefHat className="w-4 h-4" />
                         <span className="text-xs font-bold hidden group-hover:inline">Baking List</span>
                     </Link>
+                    {order.status === 'Pending' && (
+                        <button
+                            onClick={async () => {
+                                setModalConfig({
+                                    isOpen: true,
+                                    title: "Confirm Request",
+                                    message: `Confirm Request for ${order.id.slice(0, 8)}:\n\n1. I have reviewed the order details.\n2. The price is correct and final.\n3. I am ready to accept this order.\n\nSend confirmation email to ${order.customer_email}?`,
+                                    type: "info",
+                                    onConfirm: async () => {
+                                        try {
+                                            // Fetch account details
+                                            const { data: appSettings } = await supabase
+                                                .from('app_settings')
+                                                .select('value')
+                                                .eq('key', 'account_details')
+                                                .single();
+
+                                            const accountDetails = appSettings?.value || "";
+                                            const receiptUrl = `${window.location.origin}/pay/${order.id}`;
+
+                                            await fetch('/api/send-email', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    to: order.customer_email,
+                                                    subject: `Order Confirmation #${order.id.slice(0, 8)}`,
+                                                    html: OrderConfirmationTemplate({ ...order, account_details: accountDetails }, receiptUrl)
+                                                })
+                                            });
+
+                                            // Update status to Confirmed
+                                            const { error: updateError } = await supabase.from("orders").update({ status: 'Confirmed' }).eq("id", order.id);
+
+                                            if (updateError) throw updateError;
+
+                                            setModalConfig({
+                                                isOpen: true,
+                                                title: "Success",
+                                                message: "Email sent and Order Confirmed!",
+                                                type: "success",
+                                                onConfirm: () => {
+                                                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                                                    fetchOrderDetails();
+                                                }
+                                            });
+                                        } catch (e: any) {
+                                            setModalConfig({
+                                                isOpen: true,
+                                                title: "Error",
+                                                message: "Failed to process: " + e.message,
+                                                type: "danger",
+                                                onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+                                            });
+                                        }
+                                    }
+                                });
+                            }}
+                            className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-full font-bold shadow-lg shadow-green-200 hover:bg-green-700 hover:scale-105 transition-all"
+                        >
+                            <Mail className="w-4 h-4" />
+                            <span>Confirm Order</span>
+                        </button>
+                    )}
                     {order && (
                         <PDFDownloadLink
                             document={<InvoicePDF order={order} />}
@@ -530,11 +589,65 @@ export default function OrderDetailsPage() {
                                     {((order.total_price || 0) - (order.amount_paid || 0)) > 0 && (
                                         <button
                                             onClick={async () => {
-                                                if (!confirm('Mark this order as fully paid?')) return;
-                                                const { error } = await supabase.from('orders').update({
-                                                    amount_paid: order.total_price
-                                                }).eq('id', order.id);
-                                                if (!error) fetchOrderDetails();
+                                                setModalConfig({
+                                                    isOpen: true,
+                                                    title: "Confirm Payment",
+                                                    message: "Mark this order as fully paid?",
+                                                    type: "info",
+                                                    onConfirm: async () => {
+                                                        // 1. Update DB
+                                                        const { error } = await supabase.from('orders').update({
+                                                            amount_paid: order.total_price
+                                                        }).eq('id', order.id);
+
+                                                        if (error) {
+                                                            setModalConfig({
+                                                                isOpen: true,
+                                                                title: "Error",
+                                                                message: "Error updating payment: " + error.message,
+                                                                type: "danger",
+                                                                onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+                                                            });
+                                                            return;
+                                                        }
+
+                                                        // 2. Send Payment Received Email
+                                                        try {
+                                                            await fetch('/api/send-email', {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({
+                                                                    to: order.customer_email,
+                                                                    subject: `Payment Verified - Order #${order.id.slice(0, 8)}`,
+                                                                    html: PaymentReceivedTemplate({ ...order, amount_paid: order.total_price })
+                                                                })
+                                                            });
+
+                                                            setModalConfig({
+                                                                isOpen: true,
+                                                                title: "Success",
+                                                                message: "Payment updated & Email sent!",
+                                                                type: "success",
+                                                                onConfirm: () => {
+                                                                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                                                                    fetchOrderDetails();
+                                                                    // We could also close automatically here
+                                                                }
+                                                            });
+                                                        } catch (e) {
+                                                            setModalConfig({
+                                                                isOpen: true,
+                                                                title: "Warning",
+                                                                message: "Payment updated, but failed to send email.",
+                                                                type: "info",
+                                                                onConfirm: () => {
+                                                                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                                                                    fetchOrderDetails();
+                                                                }
+                                                            });
+                                                        }
+                                                    }
+                                                });
                                             }}
                                             className="text-[10px] bg-green-600 text-white px-3 py-1.5 rounded-lg font-bold shadow-md hover:bg-green-700 transition-all flex items-center gap-1"
                                         >
@@ -543,6 +656,44 @@ export default function OrderDetailsPage() {
                                         </button>
                                     )}
                                 </div>
+                            </div>
+                            {order.receipt_url && (
+                                <div className="mt-4 pt-4 border-t border-[#E8ECE9]">
+                                    <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                        <div className="flex items-center gap-2">
+                                            <FileText className="w-4 h-4 text-green-600" />
+                                            <span className="text-xs font-bold text-slate-600">Payment Receipt</span>
+                                        </div>
+                                        <a
+                                            href={order.receipt_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs font-bold text-[#B03050] hover:underline"
+                                        >
+                                            View Image
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="mt-2 text-center">
+                                <button
+                                    onClick={() => {
+                                        const url = `${window.location.origin}/pay/${order.id}`;
+                                        navigator.clipboard.writeText(url);
+                                        setModalConfig({
+                                            isOpen: true,
+                                            title: "Link Copied",
+                                            message: "Payment Upload Link copied: " + url,
+                                            type: "success",
+                                            confirmText: "OK",
+                                            cancelText: "Close",
+                                            onConfirm: () => {}
+                                        });
+                                    }}
+                                    className="text-xs font-bold text-slate-400 hover:text-[#B03050] transition-colors"
+                                >
+                                    Copy Upload Payment Link
+                                </button>
                             </div>
                         </div>
                     </div>

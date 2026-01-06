@@ -4,8 +4,25 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { Search, Plus, FileText, Calendar, User, ArrowRight, Trash2, Edit } from "lucide-react";
 import { useRouter } from "next/navigation";
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
 
 export default function QuotesPage() {
+    const [modalConfig, setModalConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type?: 'danger' | 'success' | 'info';
+        onConfirm: () => void;
+        confirmText?: string;
+        cancelText?: string;
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        type: "info",
+        onConfirm: () => { },
+    });
+
     const [quotes, setQuotes] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -28,23 +45,39 @@ export default function QuotesPage() {
     };
 
     const deleteQuote = async (id: string) => {
-        if (!confirm("Are you sure you want to delete this quote?")) return;
-        const { error } = await supabase.from("orders").delete().eq("id", id);
-        if (!error) {
-            setQuotes(prev => prev.filter(q => q.id !== id));
-        }
+        setModalConfig({
+            isOpen: true,
+            title: "Delete Quote",
+            message: "Are you sure you want to delete this quote?",
+            type: "danger",
+            confirmText: "Delete",
+            onConfirm: async () => {
+                const { error } = await supabase.from("orders").delete().eq("id", id);
+                if (!error) {
+                    setQuotes(prev => prev.filter(q => q.id !== id));
+                }
+            }
+        });
     };
 
     const convertToOrder = async (quote: any) => {
-        if (!confirm("Convert this quote to a confirmed order?")) return;
-        const { error } = await supabase
-            .from("orders")
-            .update({ status: "Pending", created_at: new Date().toISOString() }) // Reset date to now? Or keep original? Usually convert means "it's an order now"
-            .eq("id", quote.id);
+        setModalConfig({
+            isOpen: true,
+            title: "Convert to Order",
+            message: "Convert this quote to a confirmed order?",
+            type: "success",
+            confirmText: "Convert",
+            onConfirm: async () => {
+                const { error } = await supabase
+                    .from("orders")
+                    .update({ status: "Pending", created_at: new Date().toISOString() })
+                    .eq("id", quote.id);
 
-        if (!error) {
-            router.push(`/orders/${quote.id}`);
-        }
+                if (!error) {
+                    router.push(`/orders/${quote.id}`);
+                }
+            }
+        });
     };
 
     const filteredQuotes = quotes.filter(quote =>
@@ -147,6 +180,16 @@ export default function QuotesPage() {
                     <p className="text-slate-300 text-sm mt-2">Create a new quote to get started</p>
                 </div>
             )}
+            <ConfirmationModal
+                isOpen={modalConfig.isOpen}
+                onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                type={modalConfig.type}
+                onConfirm={modalConfig.onConfirm}
+                confirmText={modalConfig.confirmText}
+                cancelText={modalConfig.cancelText}
+            />
         </div>
     );
 }

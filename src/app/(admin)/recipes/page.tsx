@@ -3,10 +3,27 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Plus, Trash2, Save, ChefHat, Search, ArrowRight, AlertCircle, FileText, List, X, Image as ImageIcon, Upload } from 'lucide-react';
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
 
 export default function RecipeCreator() {
     const [activeTab, setActiveTab] = useState<'recipes' | 'fillings' | 'extras'>('recipes');
     const [editorTab, setEditorTab] = useState<'ingredients' | 'instructions'>('ingredients');
+
+    const [modalConfig, setModalConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type?: 'danger' | 'success' | 'info';
+        onConfirm: () => void;
+        confirmText?: string;
+        cancelText?: string;
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        type: "info",
+        onConfirm: () => { },
+    });
 
     // Data State
     const [items, setItems] = useState<any[]>([]);
@@ -310,11 +327,19 @@ export default function RecipeCreator() {
     };
 
     const handleDelete = async () => {
-        if (!confirm("Are you sure? This cannot be undone.")) return;
-        const table = activeTab === 'extras' ? 'ingredients' : (activeTab === 'recipes' ? 'recipes' : 'fillings');
-        await supabase.from(table).delete().eq('id', selectedItem.id);
-        setSelectedItem(null);
-        fetchItems();
+        setModalConfig({
+            isOpen: true,
+            title: "Delete Item",
+            message: "Are you sure? This cannot be undone.",
+            type: "danger",
+            confirmText: "Delete",
+            onConfirm: async () => {
+                const table = activeTab === 'extras' ? 'ingredients' : (activeTab === 'recipes' ? 'recipes' : 'fillings');
+                await supabase.from(table).delete().eq('id', selectedItem.id);
+                setSelectedItem(null);
+                fetchItems();
+            }
+        });
     };
 
     const handleCreateIngredient = async () => {
@@ -930,6 +955,16 @@ export default function RecipeCreator() {
                     </div>
                 </div>
             )}
+            <ConfirmationModal
+                isOpen={modalConfig.isOpen}
+                onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                type={modalConfig.type}
+                onConfirm={modalConfig.onConfirm}
+                confirmText={modalConfig.confirmText}
+                cancelText={modalConfig.cancelText}
+            />
         </div>
     );
 }

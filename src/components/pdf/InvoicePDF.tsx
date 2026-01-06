@@ -285,7 +285,11 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order }) => {
         <View style={styles.footer}>
           <Text style={styles.footerText}>Thank you for your business!</Text>
           <Text style={styles.footerText}>Payment is due upon receipt.</Text>
-          <Text style={{ ...styles.footerText, marginTop: 5, fontWeight: 'bold' }}>Bank Details: GTBank | 0123456789 | Bakes & More</Text>
+          {order.account_details && (
+            <Text style={{ ...styles.footerText, marginTop: 5, fontWeight: 'bold' }}>
+              {order.account_details.replace(/\n/g, ' ')}
+            </Text>
+          )}
         </View>
       </Page>
     </Document>

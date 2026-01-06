@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { DollarSign, ShoppingBag, TrendingUp, AlertCircle, Clock, ArrowRight, BarChart3, PieChart, Users, Calendar, CalendarDays, Eye, EyeOff, Calculator } from "lucide-react";
+import { DollarSign, ShoppingBag, TrendingUp, AlertCircle, Clock, ArrowRight, BarChart3, PieChart, Users, Calendar, CalendarDays, Eye, EyeOff, Calculator, Mail } from "lucide-react";
 import Link from "next/link";
 
 export default function Dashboard() {
@@ -63,23 +63,27 @@ export default function Dashboard() {
       setAllOrders(orders);
 
       // Basic Stats
-      const revenue = orders.reduce((acc, o) => acc + (Number(o.total_price) || 0), 0);
-      const profit = orders.reduce((acc, o) => acc + (Number(o.profit) || 0), 0);
+      // REVENUE & PROFIT: Only count orders where payment is fully made (amount_paid >= total_price)
+      const paidOrders = orders.filter(o => (Number(o.amount_paid) || 0) >= (Number(o.total_price) || 0));
+
+      const revenue = paidOrders.reduce((acc, o) => acc + (Number(o.total_price) || 0), 0);
+      const profit = paidOrders.reduce((acc, o) => acc + (Number(o.profit) || 0), 0);
+
       const pending = orders.filter(o => o.status === 'Pending').length;
       const baking = orders.filter(o => o.status === 'Baking').length;
-      const avgOrderValue = orders.length > 0 ? revenue / orders.length : 0;
+      const avgOrderValue = paidOrders.length > 0 ? revenue / paidOrders.length : 0;
 
-      // Monthly Stats
+      // Monthly Stats (Using Paid Orders for Financials)
       const now = new Date();
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
 
-      const thisMonthOrders = orders.filter(o => {
+      const thisMonthOrders = paidOrders.filter(o => {
         const d = new Date(o.created_at);
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
       });
 
-      const lastMonthOrders = orders.filter(o => {
+      const lastMonthOrders = paidOrders.filter(o => {
         const d = new Date(o.created_at);
         // Handle January case
         const targetMonth = currentMonth === 0 ? 11 : currentMonth - 1;
@@ -102,7 +106,7 @@ export default function Dashboard() {
         if (!o.due_date) return false;
         const d = new Date(o.due_date);
         if (isNaN(d.getTime())) return false;
-        
+
         const t = new Date();
         t.setDate(t.getDate() + 1);
         return d.toISOString().split('T')[0] === t.toISOString().split('T')[0] && o.status !== 'Delivered';
@@ -238,6 +242,13 @@ export default function Dashboard() {
           >
             {showFinancials ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
+          <Link
+            href="/emails"
+            className="p-3 bg-white border border-[#E8ECE9] rounded-xl shadow-sm hover:shadow-md transition-all text-slate-400 hover:text-[#B03050]"
+            title="System Emails"
+          >
+            <Mail className="w-5 h-5" />
+          </Link>
           <Link href="/planner" className="flex items-center gap-3 px-5 py-3 bg-[#B03050] text-white rounded-xl shadow-lg shadow-pink-200 hover:bg-[#902040] hover:shadow-xl hover:-translate-y-0.5 transition-all group">
             <CalendarDays className="w-5 h-5" />
             <span className="font-bold text-sm tracking-wide">Production Planner</span>

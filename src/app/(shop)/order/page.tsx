@@ -19,7 +19,7 @@ export default function OrderPage() {
 
     // Selection State
     const [step, setStep] = useState(1); // 1: Size/Layers, 2: Flavors/Fillings, 3: Toppers, 4: Review
-    const [shape, setShape] = useState<'round' | 'square'>('round');
+    const [shape, setShape] = useState<'round' | 'square' | 'heart'>('round');
     const [size, setSize] = useState(8);
     const [layers, setLayers] = useState(2);
 
@@ -84,7 +84,7 @@ export default function OrderPage() {
         // Simplified logic: Base 6" 1 layer = 5000. Scale by volume.
         const baseVolume = Math.PI * 3 * 3 * 2; // 6" round, 2" high
         const currentRadius = size / 2;
-        const currentVolume = (shape === 'round' ? Math.PI * currentRadius * currentRadius : size * size) * (layers * 2);
+        const currentVolume = ((shape === 'round' || shape === 'heart') ? Math.PI * currentRadius * currentRadius : size * size) * (layers * 2);
 
         const volumeRatio = currentVolume / baseVolume;
         const baseRate = 5000; // Base rate for standard cake batter
@@ -285,6 +285,7 @@ export default function OrderPage() {
         // 3. Send Emails
         try {
             const adminEmail = await getAdminEmail();
+            const itemsSummary = `Shape: ${shape}, Size: ${size} Inch, Layers: ${layers}\n${layerDetails}`;
 
             // Admin Notification
             await fetch('/api/send-email', {
@@ -293,7 +294,7 @@ export default function OrderPage() {
                 body: JSON.stringify({
                     to: adminEmail,
                     subject: `New Order #${order.id.slice(0, 8)} from ${order.customer_name}`,
-                    html: NewOrderAdminTemplate(order)
+                    html: NewOrderAdminTemplate({ ...order, items_summary: itemsSummary })
                 })
             });
 
@@ -305,7 +306,7 @@ export default function OrderPage() {
                     body: JSON.stringify({
                         to: order.customer_email,
                         subject: 'We received your order! 🎂',
-                        html: NewOrderCustomerTemplate(order)
+                        html: NewOrderCustomerTemplate({ ...order, items_summary: itemsSummary })
                     })
                 });
             }
@@ -413,6 +414,13 @@ export default function OrderPage() {
                                     >
                                         <div className="w-12 h-12 bg-current opacity-20" />
                                         <span className="font-bold">Square</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setShape('heart')}
+                                        className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${shape === 'heart' ? 'border-[#B03050] bg-pink-50 text-[#B03050]' : 'border-slate-200 hover:border-slate-300'}`}
+                                    >
+                                        <div className="w-12 h-12 bg-current opacity-20 clip-path-heart" style={{ clipPath: "path('M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z')" }} />
+                                        <span className="font-bold">Heart</span>
                                     </button>
                                 </div>
 

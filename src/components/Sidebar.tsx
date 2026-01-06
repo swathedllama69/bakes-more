@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Calculator, ShoppingBag, ChefHat, Package, Settings, CalendarDays, ScrollText, Users, CircleDollarSign, LogOut, FileText, Timer } from "lucide-react";
+import { LayoutDashboard, Calculator, ShoppingBag, ChefHat, Package, Settings, CalendarDays, ScrollText, Users, CircleDollarSign, LogOut, FileText, Timer, Mail } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 
 export default function Sidebar() {

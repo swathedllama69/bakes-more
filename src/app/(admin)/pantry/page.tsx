@@ -7,6 +7,7 @@ import { getPackagingSize } from "@/lib/constants/bakery";
 import { Search, Filter, Plus, AlertTriangle, CheckCircle, ShoppingCart, Package, ArrowRight, RefreshCw, Printer, X, Pencil, ArrowUpDown, Trash2, DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
 import dynamic from "next/dynamic";
 import ShoppingListPDF from '@/components/pdf/ShoppingListPDF';
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
 
 const PDFDownloadLink = dynamic(
     () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
@@ -15,6 +16,22 @@ const PDFDownloadLink = dynamic(
 
 export default function PantryPage() {
     const [activeTab, setActiveTab] = useState<'stock' | 'shopping'>('stock');
+
+    const [modalConfig, setModalConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type?: 'danger' | 'success' | 'info';
+        onConfirm: () => void;
+        confirmText?: string;
+        cancelText?: string;
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        type: "info",
+        onConfirm: () => { },
+    });
 
     // Stock State
     const [ingredients, setIngredients] = useState<any[]>([]);
@@ -75,11 +92,19 @@ export default function PantryPage() {
     }
 
     async function deleteIngredient(id: string) {
-        if (!confirm("Are you sure you want to delete this item?")) return;
-        const { error } = await supabase.from("ingredients").delete().eq("id", id);
-        if (!error) {
-            setIngredients(prev => prev.filter(i => i.id !== id));
-        }
+        setModalConfig({
+            isOpen: true,
+            title: "Delete Ingredient",
+            message: "Are you sure you want to delete this item?",
+            type: "danger",
+            confirmText: "Delete",
+            onConfirm: async () => {
+                const { error } = await supabase.from("ingredients").delete().eq("id", id);
+                if (!error) {
+                    setIngredients(prev => prev.filter(i => i.id !== id));
+                }
+            }
+        });
     }
 
     const handleSort = (key: string) => {
@@ -142,7 +167,13 @@ export default function PantryPage() {
         const { data, error } = await supabase.from("ingredients").insert(newIngredient).select().single();
 
         if (error) {
-            alert("Error adding ingredient: " + error.message);
+            setModalConfig({
+                isOpen: true,
+                title: "Error",
+                message: "Error adding ingredient: " + error.message,
+                type: "danger",
+                onConfirm: () => {}
+            });
         } else {
             setIngredients([...ingredients, data]);
             setIsAddModalOpen(false);
@@ -175,7 +206,13 @@ export default function PantryPage() {
             .eq("id", editingIngredient.id);
 
         if (error) {
-            alert("Error updating ingredient: " + error.message);
+            setModalConfig({
+                isOpen: true,
+                title: "Error",
+                message: "Error updating ingredient: " + error.message,
+                type: "danger",
+                onConfirm: () => {}
+            });
         } else {
             setIngredients(prev => prev.map(i => i.id === editingIngredient.id ? editingIngredient : i));
             setIsEditModalOpen(false);
@@ -970,6 +1007,16 @@ export default function PantryPage() {
                     </div>
                 </div>
             )}
+            <ConfirmationModal
+                isOpen={modalConfig.isOpen}
+                onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                type={modalConfig.type}
+                onConfirm={modalConfig.onConfirm}
+                confirmText={modalConfig.confirmText}
+                cancelText={modalConfig.cancelText}
+            />
         </div>
     );
 }

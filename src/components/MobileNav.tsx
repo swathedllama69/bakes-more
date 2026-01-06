@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, ShoppingBag, Package, ChefHat, Menu, Settings, Users, FileText, Calculator, CircleDollarSign, LogOut, X, Timer } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Package, ChefHat, Menu, Settings, Users, FileText, Calculator, CircleDollarSign, LogOut, X, Timer, Mail } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
@@ -69,6 +69,7 @@ export default function MobileNav() {
                                 <MenuLink href="/quotes" icon={<FileText className="w-6 h-6" />} label="Quotes" onClick={() => setIsMoreOpen(false)} />
                                 <MenuLink href="/Calculator" icon={<Calculator className="w-6 h-6" />} label="Calc" onClick={() => setIsMoreOpen(false)} />
                                 <MenuLink href="/timer" icon={<Timer className="w-6 h-6" />} label="Timer" onClick={() => setIsMoreOpen(false)} />
+                                <MenuLink href="/emails" icon={<Mail className="w-6 h-6" />} label="Emails" onClick={() => setIsMoreOpen(false)} />
                                 <MenuLink href="/reports" icon={<CircleDollarSign className="w-6 h-6" />} label="Reports" onClick={() => setIsMoreOpen(false)} />
                                 <button
                                     onClick={handleLogout}

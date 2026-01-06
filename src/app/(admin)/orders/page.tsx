@@ -2,7 +2,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { CalendarDays, Search, Plus, Clock, ChevronDown, ChevronUp, CheckCircle, Printer, Trash2, MoreHorizontal, ArrowRight } from "lucide-react";
+import { CalendarDays, Search, Plus, Clock, ChevronDown, ChevronUp, CheckCircle, Printer, Trash2, MoreHorizontal, ArrowRight, Mail } from "lucide-react";
+import ConfirmationModal from "@/components/ui/ConfirmationModal";
+import { OrderConfirmationTemplate, PaymentReceivedTemplate } from "@/lib/email-templates";
 
 export default function OrderManager() {
     const [orders, setOrders] = useState<any[]>([]);
@@ -13,6 +15,16 @@ export default function OrderManager() {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
     const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+
+    // Modal State
+    const [modalConfig, setModalConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: 'danger' | 'success' | 'info';
+        onConfirm: () => void;
+    }>({ isOpen: false, title: '', message: '', type: 'info', onConfirm: () => { } });
+
 
     useEffect(() => {
         fetchOrders();
@@ -30,7 +42,6 @@ export default function OrderManager() {
     const getStatusColor = (status: string) => {
         switch (status) {
             case "Pending": return "bg-yellow-100 text-yellow-700 border-yellow-200";
-            case "Confirmed": return "bg-indigo-100 text-indigo-700 border-indigo-200";
             case "Processing": return "bg-blue-100 text-blue-700 border-blue-200";
             case "Baking": return "bg-blue-100 text-blue-700 border-blue-200"; // Legacy support
             case "Ready": return "bg-green-100 text-green-700 border-green-200";
@@ -55,38 +66,120 @@ export default function OrderManager() {
     };
 
     const deleteSelectedOrders = async () => {
-        if (!confirm(`Are you sure you want to delete ${selectedOrderIds.length} orders?`)) return;
+        if (selectedOrderIds.length === 0) return;
 
-        // Delete order items first (cascade usually handles this but safer to be explicit if needed, 
-        // though here we'll rely on cascade or just delete orders if configured)
-        // Assuming cascade delete is set up in DB, otherwise we need to delete items first.
-        // Let's try deleting orders directly.
-        const { error } = await supabase.from("orders").delete().in("id", selectedOrderIds);
+        setModalConfig({
+            isOpen: true,
+            title: "Delete Orders",
+            message: `Are you sure you want to delete ${selectedOrderIds.length} orders?`,
+            type: "danger",
+            onConfirm: async () => {
+                // Delete order items first (cascade usually handles this but safer to be explicit if needed, 
+                // though here we'll rely on cascade or just delete orders if configured)
+                // Assuming cascade delete is set up in DB, otherwise we need to delete items first.
+                // Let's try deleting orders directly.
+                const { error } = await supabase.from("orders").delete().in("id", selectedOrderIds);
 
-        if (error) {
-            alert("Error deleting orders: " + error.message);
-        } else {
-            setOrders(prev => prev.filter(o => !selectedOrderIds.includes(o.id)));
-            setSelectedOrderIds([]);
-        }
+                if (error) {
+                    setModalConfig({
+                        isOpen: true,
+                        title: "Error",
+                        message: "Error deleting orders: " + error.message,
+                        type: "danger",
+                        onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+                    });
+                } else {
+                    setOrders(prev => prev.filter(o => !selectedOrderIds.includes(o.id)));
+                    setSelectedOrderIds([]);
+                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                }
+            }
+        });
     };
 
     const updateStatus = async (id: string, newStatus: string) => {
-        const { error } = await supabase.from("orders").update({ status: newStatus }).eq("id", id);
-        if (!error) {
-            setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
-        } else {
-            alert(`Failed to update status: ${error.message}`);
-            console.error("Error updating status:", error);
+        const updateLogic = async () => {
+            const { error } = await supabase.from("orders").update({ status: newStatus }).eq("id", id);
+            if (!error) {
+                setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
+                setModalConfig(prev => ({ ...prev, isOpen: false }));
+            } else {
+                setModalConfig({
+                    isOpen: true,
+                    title: "Error",
+                    message: "Failed to update status: " + error.message,
+                    type: "danger",
+                    onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+                });
+            }
+        };
+
+        if (newStatus === "Confirmed") {
+            const order = orders.find(o => o.id === id);
+            setModalConfig({
+                isOpen: true,
+                title: "Confirm Order",
+                message: `Confirm change to Confirmed status for ${order?.customer_name || 'this order'}?`,
+                type: "info",
+                onConfirm: updateLogic
+            });
+            return;
         }
+
+        await updateLogic();
     };
 
     const markAsPaid = async (order: any) => {
-        if (!confirm("Mark this order as fully paid?")) return;
-        const { error } = await supabase.from("orders").update({ amount_paid: order.total_price }).eq("id", order.id);
-        if (!error) {
-            setOrders(prev => prev.map(o => o.id === order.id ? { ...o, amount_paid: order.total_price } : o));
-        }
+        setModalConfig({
+            isOpen: true,
+            title: "Confirm Payment",
+            message: "Mark this order as fully paid?",
+            type: "info",
+            onConfirm: async () => {
+                const { error } = await supabase.from("orders").update({ amount_paid: order.total_price }).eq("id", order.id);
+                if (!error) {
+                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, amount_paid: order.total_price } : o));
+                    // Send Payment Received Email
+                    try {
+                        await fetch('/api/send-email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                to: order.customer_email || order.email, // Handle legacy email field if needed
+                                subject: `Payment Verified - Order #${order.id.slice(0, 8)}`,
+                                html: PaymentReceivedTemplate({ ...order, amount_paid: order.total_price })
+                            })
+                        });
+
+                        setModalConfig({
+                            isOpen: true,
+                            title: "Success",
+                            message: "Payment marked & Email sent!",
+                            type: "success",
+                            onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+                        });
+                    } catch (e) {
+                        console.error(e);
+                        // Still update UI but show warning
+                        setModalConfig({
+                            isOpen: true,
+                            title: "Warning",
+                            message: "Payment marked, but failed to send email.",
+                            type: "info",
+                            onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+                        });
+                    }
+                } else {
+                    setModalConfig({
+                        isOpen: true,
+                        title: "Error",
+                        message: "Error updating order: " + error.message,
+                        type: "danger",
+                        onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
+                    });
+                }
+            }
+        });
     };
 
     const filteredOrders = orders
@@ -114,6 +207,13 @@ export default function OrderManager() {
                     <p className="text-slate-500 font-medium">Track production and deliveries</p>
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">
+                    <Link
+                        href="/emails"
+                        className="bg-white text-slate-700 border border-[#E8ECE9] px-4 py-3 rounded-xl font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                        title="System Emails"
+                    >
+                        <Mail className="w-5 h-5" />
+                    </Link>
                     <Link
                         href="/planner"
                         className="bg-white text-slate-700 border border-[#E8ECE9] px-4 py-3 rounded-xl font-bold shadow-sm hover:shadow-md transition-all flex items-center gap-2"
@@ -186,7 +286,6 @@ export default function OrderManager() {
                         <option value="All">All Statuses</option>
                         <option value="Pending">Pending</option>
                         <option value="Confirmed">Confirmed</option>
-                        <option value="Processing">Processing</option>
                         <option value="Ready">Ready</option>
                         <option value="Delivered">Delivered</option>
                         <option value="Cancelled">Cancelled</option>
@@ -341,6 +440,72 @@ export default function OrderManager() {
                                                     </select>
                                                 </div>
 
+                                                {order.status === 'Pending' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setModalConfig({
+                                                                isOpen: true,
+                                                                title: "Send Confirmation Email",
+                                                                message: `Send confirmation email to ${order.customer_email}?`,
+                                                                type: "info",
+                                                                confirmText: "Send Email",
+                                                                onConfirm: async () => {
+                                                                    try {
+                                                                        // Fetch account details
+                                                                        const { data: appSettings } = await supabase
+                                                                            .from('app_settings')
+                                                                            .select('value')
+                                                                            .eq('key', 'account_details')
+                                                                            .single();
+
+                                                                        const accountDetails = appSettings?.value || "";
+                                                                        const receiptUrl = `${window.location.origin}/pay/${order.id}`;
+
+                                                                        await fetch('/api/send-email', {
+                                                                            method: 'POST',
+                                                                            headers: { 'Content-Type': 'application/json' },
+                                                                            body: JSON.stringify({
+                                                                                to: order.customer_email,
+                                                                                subject: `Order Confirmation #${order.id.slice(0, 8)}`,
+                                                                                html: OrderConfirmationTemplate({ ...order, account_details: accountDetails }, receiptUrl)
+                                                                            })
+                                                                        });
+                                                                        
+                                                                        // Update status to Confirmed in DB
+                                                                        const { error: updateError } = await supabase
+                                                                            .from('orders')
+                                                                            .update({ status: 'Confirmed' })
+                                                                            .eq('id', order.id);
+
+                                                                        if (updateError) throw updateError;
+
+                                                                        // Update local state so button disappears
+                                                                        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Confirmed' } : o));
+
+                                                                        setModalConfig({
+                                                                            isOpen: true,
+                                                                            title: "Email Sent",
+                                                                            message: "Confirmation email sent and Order status updated to Confirmed!",
+                                                                            type: "success",
+                                                                            onConfirm: () => {}
+                                                                        });
+                                                                    } catch (e: any) {
+                                                                        setModalConfig({
+                                                                            isOpen: true,
+                                                                            title: "Error",
+                                                                            message: "Failed: " + e.message,
+                                                                            type: "danger",
+                                                                            onConfirm: () => {}
+                                                                        });
+                                                                    }
+                                                                }
+                                                            });
+                                                        }}
+                                                        className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+                                                    >
+                                                        <Mail className="w-4 h-4" /> Confirm
+                                                    </button>
+                                                )}
                                                 {balance > 0 && (
                                                     <button
                                                         onClick={() => markAsPaid(order)}
@@ -389,6 +554,14 @@ export default function OrderManager() {
                     })}
                 </div>
             )}
+            <ConfirmationModal
+                isOpen={modalConfig.isOpen}
+                onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                type={modalConfig.type}
+                onConfirm={modalConfig.onConfirm}
+            />
         </div>
     );
 }
