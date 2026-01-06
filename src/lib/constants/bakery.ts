@@ -12,7 +12,7 @@ export const SIZE_MULTIPLIERS: Record<number, number> = {
 
 export const BAKERY_EMAILS = {
     ADMIN: 'aliyuiliyasu16@gmail.com', // Update this to your admin email
-    SENDER: 'orders@bakesandmore.com.ng'
+    SENDER: 'aliyuiliyasu16@gmail.com' // Gmail will force the sender to be the authenticated account
 };
 
 export const getPackagingSize = (cakeSize: number): number => {
