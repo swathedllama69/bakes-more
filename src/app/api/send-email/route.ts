@@ -1,40 +1,27 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
 import { BAKERY_EMAILS } from '@/lib/constants/bakery';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
     try {
         const { to, subject, html } = await request.json();
 
-        const user = process.env.GMAIL_USER;
-        const pass = process.env.GMAIL_APP_PASSWORD;
-
-        if (!user || !pass) {
-            console.log("Mock Email Sent (Missing Gmail Credentials):", { to, subject });
-            return NextResponse.json({ success: true, message: "Mock email logged (no credentials)" });
+        if (!process.env.RESEND_API_KEY) {
+            console.log("Mock Email Sent:", { to, subject });
+            return NextResponse.json({ success: true, message: "Mock email logged (no API key)" });
         }
 
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: user,
-                pass: pass,
-            },
-        });
-
-        const mailOptions = {
-            from: `Bakes & More <${user}>`, // Gmail always overwrites this with the authenticated user
-            to: to,
+        const data = await resend.emails.send({
+            from: `Bakes & More <${BAKERY_EMAILS.SENDER}>`,
+            to: [to],
             subject: subject,
             html: html,
-        };
+        });
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log("Email sent: %s", info.messageId);
-
-        return NextResponse.json({ success: true, messageId: info.messageId });
+        return NextResponse.json(data);
     } catch (error) {
-        console.error("Error sending email:", error);
-        return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
+        return NextResponse.json({ error });
     }
 }
