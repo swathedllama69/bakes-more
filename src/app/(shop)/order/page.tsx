@@ -480,7 +480,46 @@ export default function OrderPage() {
                                         </select>
                                     </div>
 
-                                    {/* Size & layers picker handled in Step 1 */}
+                                    {i < layers - 1 && (
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Filling (between this layer and next)</label>
+                                            <select
+                                                value={layerFillings[i] || ""}
+                                                onChange={(e) => handleLayerFillingChange(i, e.target.value)}
+                                                className="w-full p-3 bg-white border border-slate-200 rounded-xl font-medium outline-none focus:border-[#B03050] focus:ring-4 focus:ring-[#B03050]/10 transition-all shadow-sm"
+                                            >
+                                                <option value="">No Filling</option>
+                                                {fillings.length > 0 ? (
+                                                    fillings.map(f => (
+                                                        <option key={f.id} value={f.id}>{f.name}</option>
+                                                    ))
+                                                ) : (
+                                                    <option disabled>Loading fillings...</option>
+                                                )}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+
+                            <div className="flex gap-4 mt-8">
+                                <button onClick={() => setStep(1)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all">
+                                    Back
+                                </button>
+                                <button onClick={() => setStep(3)} className="flex-[2] py-4 bg-[#B03050] text-white rounded-xl font-bold text-lg shadow-lg hover:bg-[#902040] transition-all flex items-center justify-center gap-2">
+                                    Next: Toppers <ChevronRight className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 3 && (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+                            <h3 className="text-xl font-serif font-bold mb-4">Choose Toppers & Add-ons</h3>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {toppers.map((t) => (
+                                    <button
                                         key={t.id}
                                         onClick={() => toggleTopper(t.id)}
                                         className={`p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden group ${selectedToppers.includes(t.id) ? 'border-[#B03050] bg-pink-50' : 'border-slate-200 hover:border-slate-300'}`}
