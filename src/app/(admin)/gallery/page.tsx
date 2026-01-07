@@ -82,10 +82,14 @@ export default function GalleryManager() {
                 throw new Error(`Failed to upload image: ${uploadError.message}`);
             }
 
-            // G}
+            // Get public URL
+            const { data: { publicUrl } } = supabase.storage
+                .from('gallery-images')
+                .getPublicUrl(filePath);
 
-            setNewUrl("");
-            setImageFile(nulllery_items")
+            // Save to database
+            const { error } = await supabase
+                .from("gallery_items")
                 .insert({
                     instagram_url: newUrl,
                     image_url: publicUrl,
@@ -94,14 +98,13 @@ export default function GalleryManager() {
                     media_type: 'IMAGE',
                     display_order: items.length
                 });
-                if (error.code === '23505') {
-                    throw new Error('This Instagram post is already in your gallery!');
-                }
+
+            if (error) {
                 throw error;
             }
 
             setNewUrl("");
-            setImageUrl("");
+            setImageFile(null);
             setCaption("");
             fetchGalleryItems();
 
