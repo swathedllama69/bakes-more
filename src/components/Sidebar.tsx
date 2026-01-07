@@ -82,10 +82,10 @@ export default function Sidebar() {
                         label="Pantry"
                         active={isActive('/pantry')}
                     />
-                    <NavItem href="/gallery"
+                    <NavItem href="/admin-gallery"
                         icon={<ImageIcon className="w-5 h-5" />}
                         label="Gallery"
-                        active={isActive('/gallery')}
+                        active={isActive('/admin-gallery')}
                     />
                 </nav>
 

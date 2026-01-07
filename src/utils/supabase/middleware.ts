@@ -42,7 +42,7 @@ export async function updateSession(request: NextRequest) {
         !request.nextUrl.pathname.startsWith('/login') &&
         !request.nextUrl.pathname.startsWith('/forgot-password') &&
         !request.nextUrl.pathname.startsWith('/auth') &&
-        !request.nextUrl.pathname.startsWith('/public-gallery') &&
+        !request.nextUrl.pathname.startsWith('/gallery') &&
         !request.nextUrl.pathname.startsWith('/pay') &&
         request.nextUrl.pathname !== '/' // Allow landing page if it exists, or force login
     ) {
