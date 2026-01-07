@@ -383,7 +383,7 @@ export default function OrderPage() {
                     </div>
 
                     <h1 className="text-4xl font-serif text-[#B03050] mb-2">Build Your Cake</h1>
-                    <p className="text-slate-500 mb-8">Choose a size/layer combo from the price list, then add fillings & toppers.</p>
+                    <p className="text-slate-500 mb-8">Pick your inches first, then choose 1–4 layers from the price list.</p>
 
                     {/* Progress Steps */}
                     <div className="flex items-center gap-2 mb-12">
@@ -421,26 +421,47 @@ export default function OrderPage() {
                                 </div>
 
                                 <div className="space-y-6">
-                                    <h3 className="text-xl font-serif font-bold">2. Pick a size & layers (priced)</h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {availableCakes.map((cake) => {
-                                            const isActive = size === cake.inches && layers === cake.layers;
+                                    <h3 className="text-xl font-serif font-bold">2. Choose Inches</h3>
+                                    <div className="flex gap-3 overflow-x-auto pb-2">
+                                        {availableSizes.map((s) => (
+                                            <button
+                                                key={s}
+                                                onClick={() => {
+                                                    setSize(s);
+                                                    const layerOptions = getLayerPricesForSize(s);
+                                                    const firstAvailable = layerOptions.find((x) => x.price != null);
+                                                    if (firstAvailable) setLayers(firstAvailable.layers);
+                                                }}
+                                                className={`px-6 py-3 rounded-xl font-bold border-2 transition-all whitespace-nowrap ${size === s ? 'border-[#B03050] bg-[#B03050] text-white' : 'border-slate-200 text-slate-600 hover:border-[#B03050]'}`}
+                                            >
+                                                {s}"
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <h3 className="text-xl font-serif font-bold">3. Choose Layers (1–4)</h3>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                        {getLayerPricesForSize(size).map((opt) => {
+                                            const disabled = opt.price == null;
+                                            const active = layers === opt.layers;
                                             return (
                                                 <button
-                                                    key={`${cake.inches}-${cake.layers}`}
-                                                    onClick={() => { setSize(cake.inches); setLayers(cake.layers); }}
-                                                    className={`p-4 rounded-2xl border-2 transition-all text-left shadow-sm ${isActive ? 'border-[#B03050] bg-[#B03050] text-white shadow-lg' : 'border-slate-200 text-slate-700 hover:border-[#B03050]'}`}
+                                                    key={opt.layers}
+                                                    disabled={disabled}
+                                                    onClick={() => setLayers(opt.layers)}
+                                                    className={`p-4 rounded-xl border-2 transition-all text-left ${active ? 'border-[#B03050] bg-pink-50 text-[#B03050]' : 'border-slate-200 text-slate-700 hover:border-slate-300'} ${disabled ? 'opacity-40 cursor-not-allowed hover:border-slate-200' : ''}`}
                                                 >
-                                                    <div className="flex items-center justify-between">
+                                                    <div className="flex items-start justify-between gap-2">
                                                         <div>
-                                                            <p className="text-xs uppercase opacity-70">Whipped Cream</p>
-                                                            <p className="text-xl font-bold">{cake.inches}" · {cake.layers} Layer{cake.layers > 1 ? 's' : ''}</p>
+                                                            <p className="font-bold">{opt.layers} Layer{opt.layers > 1 ? 's' : ''}</p>
+                                                            {opt.isInferred && opt.layers === 1 && (
+                                                                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Estimated</p>
+                                                            )}
                                                         </div>
-                                                        <span className="text-sm font-bold px-3 py-1 rounded-full bg-white/20 border border-white/30">
-                                                            ₦{cake.price.toLocaleString()}
-                                                        </span>
+                                                        <p className={`text-sm font-bold ${active ? 'text-[#B03050]' : 'text-slate-700'}`}>
+                                                            {opt.price != null ? `₦${opt.price.toLocaleString()}` : '—'}
+                                                        </p>
                                                     </div>
-                                                    <p className={`mt-2 text-sm ${isActive ? 'text-white/80' : 'text-slate-500'}`}>Price matches your official list.</p>
                                                 </button>
                                             );
                                         })}
