@@ -249,16 +249,16 @@ export default function GalleryManager() {
                         )}
                     </button>
                 </div>
-→ Click ••• → Copy link → Paste above</li>
+
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <p className="text-sm font-bold text-blue-900 mb-2">✨ How to add images:</p>
+                    <ol className="text-xs text-blue-800 space-y-1 ml-4 list-decimal">
+                        <li>Go to Instagram post → Click ••• → Copy link → Paste above</li>
                         <li>Right-click Instagram image → Save image to computer</li>
                         <li>Upload the file above</li>
                         <li>Click "Add to Gallery" - done! 🎉</li>
                     </ol>
-                    <p className="text-xs text-blue-700 mt-2 italic">💡 Images are stored in your Supabase project font-bold">imgbb.com</a> (free, no signup)</li>
-                        <li>Copy the "Direct link" → Paste in "Image URL" field</li>
-                        <li>Click "Add to Gallery" - done! 🎉</li>
-                    </ol>
-                    <p className="text-xs text-blue-700 mt-2 italic">💡 imgbb.com is free and works perfectly for gallery images!</p>
+                    <p className="text-xs text-blue-700 mt-2 italic">💡 Images are stored in your Supabase project!</p>
                 </div>
             </div>
 
