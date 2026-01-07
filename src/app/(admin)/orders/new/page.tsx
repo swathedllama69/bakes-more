@@ -36,8 +36,9 @@ export default function NewOrderPage() {
 
     // Order Items (The Cakes)
     const [items, setItems] = useState<any[]>([
-        { id: 1, recipe_id: "", filling_id: "", size: 6, layers: 1, qty: 1, price: 0, cost: 0 }
+        { id: 1, recipe_id: "", filling_id: "", size: 6, layers: [], qty: 1, price: 0, cost: 0 }
     ]);
+    const [recipeSearch, setRecipeSearch] = useState("");
 
     // Financials
     const [extras, setExtras] = useState<any[]>([]); // { name, cost, price }
@@ -53,13 +54,19 @@ export default function NewOrderPage() {
 
     useEffect(() => {
         const fetchData = async () => {
-            const { data: r } = await supabase.from("recipes").select("*");
-            const { data: f } = await supabase.from("fillings").select("*");
-            const { data: c } = await supabase.from("customers").select("*").order("full_name");
-
-            if (r) setRecipes(r);
-            if (f) setFillings(f);
-            if (c) setCustomers(c);
+            try {
+                const { data: r, error: rErr } = await supabase.from("recipes").select("*");
+                const { data: f, error: fErr } = await supabase.from("fillings").select("*");
+                const { data: c, error: cErr } = await supabase.from("customers").select("*").order("full_name");
+                if (rErr || fErr || cErr) throw rErr || fErr || cErr;
+                setRecipes(r || []);
+                setFillings(f || []);
+                setCustomers(c || []);
+            } catch (err) {
+                setRecipes([]);
+                setFillings([]);
+                setCustomers([]);
+            }
         };
         fetchData();
     }, []);
@@ -170,7 +177,7 @@ export default function NewOrderPage() {
     };
 
     const addItem = () => {
-        setItems([...items, { id: Date.now(), recipe_id: "", filling_id: "", size: 6, layers: 1, qty: 1, price: 0, cost: 0 }]);
+        setItems([...items, { id: Date.now(), recipe_id: "", filling_id: "", size: 6, layers: [], qty: 1, price: 0, cost: 0 }]);
     };
 
     const removeItem = (index: number) => {
@@ -181,13 +188,16 @@ export default function NewOrderPage() {
     const updateItem = (index: number, field: string, value: any) => {
         const newItems = [...items];
         const item = newItems[index];
-
+        let newValue = value;
+        if (field === 'layers') {
+            newValue = Array.isArray(value) ? value : value ? [value] : [];
+        }
         // If critical fields change, recalculate cost
-        if (['recipe_id', 'filling_id', 'size', 'layers'].includes(field)) {
-            const updatedItem = { ...item, [field]: value };
+        if (["recipe_id", "filling_id", "size", "layers"].includes(field)) {
+            const updatedItem = { ...item, [field]: newValue };
             calculateItemCost(index, updatedItem.recipe_id, updatedItem.filling_id, updatedItem.size, updatedItem.layers);
         } else {
-            newItems[index] = { ...item, [field]: value };
+            newItems[index] = { ...item, [field]: newValue };
             setItems(newItems);
         }
     };
@@ -506,6 +516,32 @@ export default function NewOrderPage() {
                             </button>
                         </div>
 
+                        {/* Recipe Search State */}
+                        {items.map((item, idx) => (
+                            <div key={item.id + '-search'}>
+                                {item.showRecipeSearch && (
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        value={item.recipeSearch || ''}
+                                        onChange={e => {
+                                            const newItems = [...items];
+                                            newItems[idx].recipeSearch = e.target.value;
+                                            setItems(newItems);
+                                        }}
+                                        placeholder="Search recipes..."
+                                        className="w-full mb-2 p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
+                                        onBlur={() => {
+                                            setTimeout(() => {
+                                                const newItems = [...items];
+                                                newItems[idx].showRecipeSearch = false;
+                                                setItems(newItems);
+                                            }, 200);
+                                        }}
+                                    />
+                                )}
+                            </div>
+                        ))}
                         <div className="space-y-6">
                             {items.map((item, idx) => (
                                 <div key={item.id} className="p-4 border border-[#E8ECE9] rounded-2xl bg-[#FDFBF7] relative group transition-all hover:shadow-sm">
@@ -519,14 +555,46 @@ export default function NewOrderPage() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 pr-8">
                                         <div>
                                             <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Flavor (Recipe)</label>
-                                            <select
-                                                value={item.recipe_id}
-                                                onChange={e => updateItem(idx, 'recipe_id', e.target.value)}
-                                                className="w-full p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
-                                            >
-                                                <option value="">Select Recipe...</option>
-                                                {recipes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                            </select>
+                                            <div className="relative">
+                                                <select
+                                                    value={item.recipe_id}
+                                                    onChange={e => updateItem(idx, 'recipe_id', e.target.value)}
+                                                    className="w-full p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
+                                                    onFocus={() => {
+                                                        const newItems = [...items];
+                                                        newItems[idx].showRecipeSearch = true;
+                                                        setItems(newItems);
+                                                    }}
+                                                >
+                                                    <option value="">{recipes.length === 0 ? 'No recipes found' : 'Select Recipe...'}</option>
+                                                    {(() => {
+                                                        // Filter recipes by size and search
+                                                        const sizeStr = String(item.size);
+                                                        const sizePatterns = [
+                                                            new RegExp(`\\b${sizeStr}\\b`),
+                                                            new RegExp(`\\b${sizeStr}\\"`),
+                                                            new RegExp(`\\b${sizeStr} ?(in|inch|inches)\\b`, 'i')
+                                                        ];
+                                                        let filtered = recipes.filter(r => {
+                                                            if (typeof r.size !== 'undefined' && r.size === item.size) return true;
+                                                            if (typeof r.name === 'string') {
+                                                                return sizePatterns.some(pat => pat.test(r.name));
+                                                            }
+                                                            return false;
+                                                        });
+                                                        if (filtered.length === 0) filtered = recipes;
+                                                        // Apply search filter if present
+                                                        const search = item.recipeSearch ? item.recipeSearch.toLowerCase() : '';
+                                                        if (search) {
+                                                            filtered = filtered.filter(r => r.name && r.name.toLowerCase().includes(search));
+                                                        }
+                                                        return filtered
+                                                            .sort((a, b) => a.name.localeCompare(b.name))
+                                                            .map(r => <option key={r.id} value={r.id}>{r.name}</option>);
+                                                    })()}
+                                                    {recipes.length === 0 && <option disabled>No recipes available</option>}
+                                                </select>
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Filling</label>
@@ -535,8 +603,9 @@ export default function NewOrderPage() {
                                                 onChange={e => updateItem(idx, 'filling_id', e.target.value)}
                                                 className="w-full p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
                                             >
-                                                <option value="">None</option>
-                                                {fillings.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                                <option value="">{fillings.length === 0 ? 'No fillings found' : 'None'}</option>
+                                                {fillings.sort((a, b) => a.name.localeCompare(b.name)).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                                {fillings.length === 0 && <option disabled>No fillings available</option>}
                                             </select>
                                         </div>
                                     </div>
@@ -549,18 +618,30 @@ export default function NewOrderPage() {
                                                 onChange={e => updateItem(idx, 'size', Number(e.target.value))}
                                                 className="w-full p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
                                             >
-                                                {[4, 5, 6, 7, 8, 9, 10, 12, 14].map(s => <option key={s} value={s}>{s}"</option>)}
+                                                {[4, 5, 6, 7, 8, 9, 10, 12, 14].map(s => (
+                                                    <option key={s} value={s}>{s}"</option>
+                                                ))}
                                             </select>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Layers</label>
-                                            <input
-                                                type="number"
-                                                value={item.layers}
-                                                onChange={e => updateItem(idx, 'layers', Number(e.target.value))}
+                                            <select
+                                                value={item.layers[0] || ""}
+                                                onChange={e => updateItem(idx, 'layers', [e.target.value])}
                                                 className="w-full p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
-                                                min={1}
-                                            />
+                                            >
+                                                <option value="">Select Layer...</option>
+                                                {(() => {
+                                                    const recipe = recipes.find(r => r.id === item.recipe_id);
+                                                    if (recipe && recipe.prices && typeof recipe.prices === 'object') {
+                                                        return Object.keys(recipe.prices).map(l => (
+                                                            <option key={l} value={l}>{l} Layer ({recipe.prices[l]}₦)</option>
+                                                        ));
+                                                    }
+                                                    return [1,2,3,4].map(l => <option key={l} value={l}>{l} Layer</option>);
+                                                })()}
+                                                {recipes.length === 0 && <option disabled>No layers available</option>}
+                                            </select>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Quantity</label>

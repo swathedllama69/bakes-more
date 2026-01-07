@@ -1,11 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Plus, Trash2, Save, ChefHat, Search, ArrowRight, AlertCircle, FileText, List, X, Image as ImageIcon, Upload } from 'lucide-react';
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 
 export default function RecipeCreator() {
+    // Grouping mode: size (default), flavor, category
+    const [groupMode, setGroupMode] = useState<'size' | 'flavor' | 'category'>('flavor');
+    // Collapsible group state and multi-select
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [groupCollapse, setGroupCollapse] = useState<{ [cat: string]: boolean }>({});
     const [activeTab, setActiveTab] = useState<'recipes' | 'fillings' | 'desserts' | 'extras'>('recipes');
     const [editorTab, setEditorTab] = useState<'ingredients' | 'instructions'>('ingredients');
 
@@ -46,11 +51,21 @@ export default function RecipeCreator() {
     // Editor State
     const [editName, setEditName] = useState("");
     const [editCategory, setEditCategory] = useState("Cake");
+    // Stepper state for Cake creation
+    const [cakeStep, setCakeStep] = useState(1);
+    // Use 'prices' for layer prices (jsonb)
+    const [editLayerPrices, setEditLayerPrices] = useState<{ [key: number]: number }>({ 1: 0, 2: 0, 3: 0, 4: 0 });
     const [editDuration, setEditDuration] = useState(45); // For recipes
     const [editInstructions, setEditInstructions] = useState("");
     const [editYieldAmount, setEditYieldAmount] = useState(1);
     const [editYieldUnit, setEditYieldUnit] = useState("Unit");
     const [editBaseSize, setEditBaseSize] = useState<number | null>(null);
+    const [editFrosting, setEditFrosting] = useState('Whipped Cream');
+    const [editShape, setEditShape] = useState('Round');
+    const [editSize, setEditSize] = useState(8);
+    const [editFlavor, setEditFlavor] = useState('Vanilla');
+    const [editLuxury, setEditLuxury] = useState(false);
+    const [editLuxuryFlavor, setEditLuxuryFlavor] = useState('Oreo');
     const [editSellingPrice, setEditSellingPrice] = useState(0);
     const [editIngredients, setEditIngredients] = useState<any[]>([]);
     const [editImageUrl, setEditImageUrl] = useState(""); // For extras
@@ -143,6 +158,15 @@ export default function RecipeCreator() {
             setEditYieldUnit(item.yield_unit || "Unit");
             setEditBaseSize(item.base_size_inches || null);
             setEditSellingPrice(item.selling_price || 0);
+            setEditFrosting(item.frosting || 'Whipped Cream');
+            setEditShape(item.cake_type || 'Round');
+            setEditSize(Number(item.size) || 8);
+            setEditFlavor(item.flavor || 'Vanilla');
+            setEditLuxury(item.luxury || false);
+            setEditLuxuryFlavor(item.luxury_flavor || 'Oreo');
+            // Load prices (layer prices) if they exist, otherwise default
+            const defaultPrices = { 1: item.selling_price || 0, 2: 0, 3: 0, 4: 0 };
+            setEditLayerPrices(item.prices || defaultPrices);
         } else {
             setEditSellingPrice(item.price || 0);
         }
@@ -180,6 +204,13 @@ export default function RecipeCreator() {
         setEditYieldUnit("Unit");
         setEditBaseSize(8);
         setEditSellingPrice(0);
+        setEditLayerPrices({ 1: 0, 2: 0, 3: 0, 4: 0 });
+        setEditFrosting('Whipped Cream');
+        setEditShape('Round');
+        setEditSize(8);
+        setEditFlavor('Vanilla');
+        setEditLuxury(false);
+        setEditLuxuryFlavor('Oreo');
         setEditIngredients([]);
         setEditImageUrl("");
         setEditorTab('ingredients');
@@ -215,11 +246,33 @@ export default function RecipeCreator() {
     };
 
     const totalCost = editIngredients.reduce((sum, i) => sum + i.cost, 0);
+    // For cake layers: only multiply cost for non-Topper/Decoration/Packaging ingredients
+    const scalableCategories = ["Topper", "Decoration", "Packaging"];
+    function getLayerCost(layer: string) {
+        return editIngredients.reduce((sum, i) => {
+            // If layer is a string, try to convert to number
+            const layerNum = typeof layer === 'number' ? layer : parseInt(layer, 10);
+            // Always use layerNum for arithmetic
+            const ingredient = ingredients.find(ing => ing.id === i.ingredient_id);
+            const cat = ingredient?.category || i.category;
+            if (cat === "Topper" || cat === "Decoration" || cat === "Packaging") {
+                return sum + i.cost;
+            } else {
+                return sum + i.cost * layerNum;
+            }
+        }, 0);
+    }
     const profit = editSellingPrice - totalCost;
     const margin = editSellingPrice > 0 ? (profit / editSellingPrice) * 100 : 0;
 
-    // Derive categories from ingredients
-    const categories = ["Flour/Dry", ...Array.from(new Set(ingredients.map(i => i.category))).filter(c => c !== "Flour/Dry")];
+    // Derive categories from ingredients, with Topper, Decoration, Packaging last
+    const allCats = Array.from(new Set(ingredients.map(i => i.category)));
+    const endCats = ["Topper", "Decoration", "Packaging"];
+    const categories = [
+        "Flour/Dry",
+        ...allCats.filter(c => c !== "Flour/Dry" && !endCats.includes(c)),
+        ...endCats.filter(c => allCats.includes(c))
+    ];
 
     const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         try {
@@ -304,6 +357,13 @@ export default function RecipeCreator() {
                 itemData.base_size_inches = editBaseSize;
                 itemData.base_cost = totalCost; // Save calculated cost
                 itemData.selling_price = editSellingPrice;
+                // New fields for new schema
+                itemData.frosting = editFrosting;
+                itemData.cake_type = editShape;
+                itemData.size = String(editSize);
+                itemData.flavor = editFlavor;
+                itemData.luxury = editLuxury;
+                itemData.prices = editLayerPrices; // Save as prices (jsonb)
             } else {
                 // Fillings
                 itemData.price = editSellingPrice;
@@ -448,12 +508,15 @@ export default function RecipeCreator() {
                                     <option value="All">All Flavors</option>
                                     {availableFlavors.map(f => <option key={f} value={f}>{f}</option>)}
                                 </select>
-                                <button
-                                    onClick={() => setGroupByCategory(!groupByCategory)}
-                                    className={`px-3 py-2 rounded-lg border text-xs font-bold transition-all ${groupByCategory ? 'bg-[#B03050] text-white border-[#B03050]' : 'bg-white text-slate-500 border-[#E8ECE9]'}`}
+                                <select
+                                    value={groupMode}
+                                    onChange={e => setGroupMode(e.target.value as 'size' | 'flavor' | 'category')}
+                                    className="p-2 bg-white rounded-lg border border-[#E8ECE9] text-xs font-bold text-slate-600 outline-none focus:border-[#B03050]"
                                 >
-                                    {groupByCategory ? 'Grouped' : 'Group?'}
-                                </button>
+                                    <option value="size">Group by Size</option>
+                                    <option value="flavor">Group by Flavor</option>
+                                    <option value="category">Group by Category</option>
+                                </select>
                             </div>
                         )}
                     </div>
@@ -473,30 +536,101 @@ export default function RecipeCreator() {
                                 return matchesSearch && matchesFlavor;
                             });
 
-                            if (groupByCategory && activeTab === 'recipes') {
-                                return uniqueCategories.map(cat => {
-                                    const catItems = filtered.filter(i => (i.category || 'Uncategorized') === cat);
+                            if (activeTab === 'recipes' && groupMode) {
+                                // Determine group key and label
+                                let groupKeyFn: (item: any) => string;
+                                let groupLabel = '';
+                                if (groupMode === 'size') {
+                                    groupKeyFn = (i) => (i.size ? `${i.size}"` : 'Unknown');
+                                    groupLabel = 'Size';
+                                } else if (groupMode === 'flavor') {
+                                    groupKeyFn = (i) => i.flavor || 'Unknown';
+                                    groupLabel = 'Flavor';
+                                } else {
+                                    groupKeyFn = (i) => i.category || 'Uncategorized';
+                                    groupLabel = 'Category';
+                                }
+                                // Group items
+                                const groupMap: { [key: string]: any[] } = {};
+                                filtered.forEach(i => {
+                                    const key = groupKeyFn(i);
+                                    if (!groupMap[key]) groupMap[key] = [];
+                                    groupMap[key].push(i);
+                                });
+                                let groupKeys = Object.keys(groupMap);
+                                // Sort group keys: for size, sort numerically; else alphabetically
+                                if (groupMode === 'size') {
+                                    groupKeys = groupKeys.sort((a, b) => {
+                                        const numA = parseInt(a);
+                                        const numB = parseInt(b);
+                                        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                                        return a.localeCompare(b);
+                                    });
+                                } else {
+                                    groupKeys = groupKeys.sort((a, b) => a.localeCompare(b));
+                                }
+                                // By default, all groups collapsed
+                                React.useEffect(() => {
+                                    const collapsed: { [key: string]: boolean } = {};
+                                    groupKeys.forEach(k => { collapsed[k] = false; });
+                                    setGroupCollapse(collapsed);
+                                }, [groupMode, filtered.length]);
+
+                                return groupKeys.map(group => {
+                                    const catItems = groupMap[group];
                                     if (catItems.length === 0) return null;
+                                    const isOpen = groupCollapse[group] === true;
+                                    const allChecked = catItems.every(i => selectedIds.includes(i.id));
+                                    const someChecked = catItems.some(i => selectedIds.includes(i.id));
                                     return (
-                                        <div key={cat} className="mb-4">
-                                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">{cat}</h3>
-                                            <div className="space-y-2">
-                                                {catItems.map((item, idx) => (
-                                                    <div
-                                                        key={item.id}
-                                                        onClick={() => handleSelectItem(item)}
-                                                        className={`p-3 rounded-lg border cursor-pointer transition-all group ${selectedItem?.id === item.id ? 'bg-[#FDFBF7] border-[#B03050] shadow-sm' : 'bg-white border-[#E8ECE9] hover:border-[#B03050]'}`}
-                                                    >
-                                                        <div className="flex justify-between items-center">
-                                                            <div className="flex items-center gap-3">
+                                        <div key={group} className="mb-4">
+                                            <div className="flex items-center mb-2 ml-1">
+                                                <button onClick={() => setGroupCollapse(prev => ({ ...prev, [group]: !isOpen }))} className="mr-2 text-xs font-bold text-slate-400 focus:outline-none">
+                                                    {isOpen ? '▼' : '►'}
+                                                </button>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={allChecked}
+                                                    ref={el => { if (el) el.indeterminate = !allChecked && someChecked; }}
+                                                    onChange={e => {
+                                                        if (e.target.checked) {
+                                                            setSelectedIds(prev => [...prev, ...catItems.filter(i => !prev.includes(i.id)).map(i => i.id)]);
+                                                        } else {
+                                                            setSelectedIds(prev => prev.filter(id => !catItems.some(i => i.id === id)));
+                                                        }
+                                                    }}
+                                                    className="mr-2"
+                                                />
+                                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">{groupLabel}: {group}</h3>
+                                            </div>
+                                            {isOpen && (
+                                                <div className="space-y-2">
+                                                    {catItems.map((item, idx) => (
+                                                        <div
+                                                            key={item.id}
+                                                            className={`p-3 rounded-lg border cursor-pointer transition-all group flex items-center ${selectedItem?.id === item.id ? 'bg-[#FDFBF7] border-[#B03050] shadow-sm' : 'bg-white border-[#E8ECE9] hover:border-[#B03050]'}`}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedIds.includes(item.id)}
+                                                                onChange={e => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedIds(prev => [...prev, item.id]);
+                                                                    } else {
+                                                                        setSelectedIds(prev => prev.filter(id => id !== item.id));
+                                                                    }
+                                                                }}
+                                                                className="mr-2"
+                                                            />
+                                                            <div onClick={() => handleSelectItem(item)} className="flex-1 flex items-center gap-3">
                                                                 <span className="text-xs font-bold text-slate-300 w-4">{idx + 1}</span>
                                                                 <span className={`text-sm font-bold ${selectedItem?.id === item.id ? 'text-[#B03050]' : 'text-slate-700'}`}>{item.name}</span>
                                                             </div>
                                                             <ArrowRight className={`w-3 h-3 ${selectedItem?.id === item.id ? 'text-[#B03050]' : 'text-slate-200 opacity-0 group-hover:opacity-100'}`} />
                                                         </div>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 });
@@ -534,10 +668,7 @@ export default function RecipeCreator() {
                                         <Trash2 className="w-5 h-5" />
                                     </button>
                                 )}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                                <div className="md:col-span-1">
+                                <div>
                                     <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Name</label>
                                     <input
                                         value={editName}
@@ -546,195 +677,226 @@ export default function RecipeCreator() {
                                         placeholder="e.g. Vanilla Sponge"
                                     />
                                 </div>
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Category</label>
+                                    <select
+                                        value={editCategory}
+                                        onChange={e => setEditCategory(e.target.value)}
+                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                                    >
+                                        <option value="Cake">Cake</option>
+                                        <option value="Dessert">Dessert</option>
+                                        <option value="Cupcake">Cupcakes</option>
+                                        <option value="Loaf">Loaf / Bread</option>
+                                        <option value="Cookie">Cookies</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
 
-                                {activeTab === 'extras' && (
-                                    <>
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Category</label>
-                                            <select
-                                                value={editCategory}
-                                                onChange={(e) => setEditCategory(e.target.value)}
-                                                className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                            <div className="space-y-4 md:space-y-2 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                                {/* Step 1: Frosting (as cards, balanced row) */}
+                                <div className="col-span-1 md:col-span-2">
+                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Frosting</label>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-1 gap-y-1">
+                                        {['Whipped Cream', 'Swiss Meringue Buttercream', 'Fondant', 'Ganache'].map(frosting => (
+                                            <button
+                                                key={frosting}
+                                                className={`px-1 py-0.5 rounded-lg border font-bold text-xs ${editFrosting === frosting ? 'bg-[#B03050] text-white border-[#B03050]' : 'bg-[#FAFAFA] text-slate-800 border-[#E8ECE9]'} transition-all`}
+                                                style={{ minWidth: 0, margin: 0, fontSize: '0.7rem', height: '1.2rem', lineHeight: '1.1' }}
+                                                onClick={() => setEditFrosting(frosting)}
                                             >
-                                                <option value="Topper">Topper</option>
-                                                <option value="Decoration">Decoration</option>
-                                                <option value="Balloon">Balloon</option>
-                                                <option value="Extra">Extra</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase text-green-600 mb-1">Price (₦)</label>
-                                            <input
-                                                type="number"
-                                                value={editSellingPrice}
-                                                onChange={(e) => setEditSellingPrice(Number(e.target.value))}
-                                                className="w-full p-3 bg-green-50 text-green-700 rounded-xl font-black border border-green-100 outline-none focus:border-green-500 transition-colors"
-                                                placeholder="0.00"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-3">
-                                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Image</label>
-                                            <div className="flex gap-4 items-center">
-                                                <div className="flex-1">
-                                                    <label
-                                                        htmlFor="image-upload"
-                                                        className={`flex items-center justify-center w-full p-4 border-2 border-dashed rounded-xl cursor-pointer transition-all ${uploading ? 'bg-slate-50 border-slate-300' : 'bg-[#FAFAFA] border-[#E8ECE9] hover:border-[#B03050] hover:bg-pink-50'}`}
-                                                    >
-                                                        <div className="flex flex-col items-center gap-2 text-slate-500">
-                                                            {uploading ? (
-                                                                <span className="text-sm font-bold animate-pulse">Uploading...</span>
-                                                            ) : (
-                                                                <>
-                                                                    <Upload className="w-6 h-6" />
-                                                                    <span className="text-sm font-bold">Click to Upload Image</span>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                        <input
-                                                            id="image-upload"
-                                                            type="file"
-                                                            accept="image/*"
-                                                            onChange={handleImageUpload}
-                                                            disabled={uploading}
-                                                            className="hidden"
-                                                        />
-                                                    </label>
-                                                </div>
-
-                                                {editImageUrl && (
-                                                    <div className="w-24 h-24 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
-                                                        <img src={editImageUrl} alt="Preview" className="w-full h-full object-cover" />
-                                                        <button
-                                                            onClick={() => setEditImageUrl("")}
-                                                            className="absolute top-1 right-1 bg-white/80 p-1 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                        >
-                                                            <X className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                {frosting}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                {/* Step 3: Flavor */}
+                                <div className="flex flex-col md:flex-row md:items-end gap-2 md:gap-4">
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Flavor</label>
+                                        <select value={editFlavor} onChange={e => {
+                                            setEditFlavor(e.target.value);
+                                            setEditLuxury(e.target.value === 'Luxury');
+                                        }} className="w-full p-2 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors">
+                                            <option>Vanilla</option>
+                                            <option>Red Velvet</option>
+                                            <option>Chocolate</option>
+                                            <option>Strawberry (Colored)</option>
+                                            <option>Luxury</option>
+                                        </select>
+                                        {editLuxury && (
+                                            <div className="mt-2">
+                                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Luxury Flavor</label>
+                                                <select value={editLuxuryFlavor} onChange={e => setEditLuxuryFlavor(e.target.value)} className="w-full p-2 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors">
+                                                    <option>Oreo</option>
+                                                    <option>Lotus</option>
+                                                    <option>Coconut</option>
+                                                    <option>Lemon</option>
+                                                    <option>Banana</option>
+                                                    <option>Carrot</option>
+                                                    <option>Strawberry</option>
+                                                    <option>Marble</option>
+                                                    <option>Chocolate Oreo</option>
+                                                    <option>Red Velvet Oreo</option>
+                                                    <option>Fruit Cake (Non-Alcoholic)</option>
+                                                </select>
                                             </div>
-                                            <p className="text-xs text-slate-400 mt-2">Supported formats: JPG, PNG, WEBP.</p>
-                                        </div>
-                                    </>
-                                )}
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Shape</label>
+                                        <select value={editShape} onChange={e => setEditShape(e.target.value)} className="w-full p-2 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors">
+                                            <option>Round</option>
+                                            <option>Square</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                {/* Step 4 removed - Merged into Pricing Section below */}
+                            </div>
 
-                                {activeTab === 'recipes' && (
-                                    <>
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Category</label>
-                                            <select
-                                                value={editCategory}
-                                                onChange={(e) => setEditCategory(e.target.value)}
-                                                className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
-                                            >
-                                                <option value="Cake">Cake (Round/Square)</option>
-                                                <option value="Dessert">Dessert</option>
-                                                <option value="Cupcake">Cupcakes</option>
-                                                <option value="Loaf">Loaf / Bread</option>
-                                                <option value="Cookie">Cookies</option>
-                                                <option value="Other">Other</option>
+                            {editCategory === 'Cupcake' && (
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Batch Yield (Count)</label>
+                                    <input
+                                        type="number"
+                                        value={editYieldAmount}
+                                        onChange={(e) => {
+                                            setEditYieldAmount(Number(e.target.value));
+                                            setEditYieldUnit("Cupcakes");
+                                        }}
+                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                                    />
+                                </div>
+                            )}
+
+                            {editCategory === 'Loaf' && (
+                                <>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Yield Amount</label>
+                                        <input
+                                            type="number"
+                                            value={editYieldAmount}
+                                            onChange={(e) => setEditYieldAmount(Number(e.target.value))}
+                                            className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Unit Type</label>
+                                        <select
+                                            value={editYieldUnit}
+                                            onChange={(e) => setEditYieldUnit(e.target.value)}
+                                            className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                                        >
+                                            <option value="Loaf">Loaf</option>
+                                            <option value="Mini Loaf">Mini Loaf</option>
+                                            <option value="Cup">Cup</option>
+                                        </select>
+                                    </div>
+                                </>
+                            )}
+
+                            <div>
+                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Baking Time (Mins)</label>
+                                <input
+                                    type="number"
+                                    value={editDuration}
+                                    onChange={(e) => setEditDuration(Number(e.target.value))}
+                                    className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                                />
+                            </div>
+
+                            {/* --- NEW PRICING SECTION --- */}
+                            {activeTab === 'recipes' ? (
+                                <div className="bg-[#FDFBF7] p-6 rounded-2xl border border-[#E8ECE9] space-y-6 mt-4">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="font-serif text-lg text-[#B03050]">Pricing & Profitability</h3>
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-xs font-bold uppercase text-slate-500">Cake Size:</label>
+                                            <select value={editSize} onChange={e => setEditSize(Number(e.target.value))} className="p-2 bg-white rounded-lg border border-[#E8ECE9] font-bold text-slate-700 outline-none focus:border-[#B03050]">
+                                                {[4, 5, 6, 7, 8, 9, 10, 12, 13, 14].map(sz => (<option key={sz} value={sz}>{sz}"</option>))}
                                             </select>
                                         </div>
+                                    </div>
 
-                                        {/* Dynamic Yield Inputs */}
-                                        {editCategory === 'Cake' && (
-                                            <>
-                                                <div>
-                                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Base Size (Inches)</label>
-                                                    <input
-                                                        type="number"
-                                                        value={editBaseSize || ''}
-                                                        onChange={(e) => setEditBaseSize(Number(e.target.value))}
-                                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
-                                                        placeholder="e.g. 8"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Yields (Layers)</label>
-                                                    <input
-                                                        type="number"
-                                                        value={editYieldAmount}
-                                                        onChange={(e) => {
-                                                            setEditYieldAmount(Number(e.target.value));
-                                                            setEditYieldUnit("Layers");
-                                                        }}
-                                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
-                                                    />
-                                                </div>
-                                            </>
-                                        )}
-
-                                        {editCategory === 'Cupcake' && (
-                                            <div>
-                                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Batch Yield (Count)</label>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        {/* 1 Layer */}
+                                        <div className="bg-white p-2 rounded border border-green-100 shadow-sm flex flex-col items-center text-xs min-w-0">
+                                            <div className="flex justify-between items-center w-full mb-1">
+                                                <label className="font-bold uppercase text-slate-400">1L</label>
+                                                <span className="font-bold text-slate-300 bg-slate-50 px-1 py-0.5 rounded">₦{Math.ceil(totalCost).toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1 w-full mb-1">
+                                                <span className="text-slate-400">₦</span>
                                                 <input
                                                     type="number"
-                                                    value={editYieldAmount}
+                                                    value={editSellingPrice || ''}
                                                     onChange={(e) => {
-                                                        setEditYieldAmount(Number(e.target.value));
-                                                        setEditYieldUnit("Cupcakes");
+                                                        const val = Number(e.target.value);
+                                                        setEditSellingPrice(val);
+                                                        setEditLayerPrices(prev => ({ ...prev, 1: val }));
                                                     }}
-                                                    className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                                                    className="w-full text-base font-bold text-slate-800 outline-none placeholder:text-slate-200 p-1"
+                                                    placeholder="0"
                                                 />
                                             </div>
-                                        )}
-
-                                        {editCategory === 'Loaf' && (
-                                            <>
-                                                <div>
-                                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Yield Amount</label>
-                                                    <input
-                                                        type="number"
-                                                        value={editYieldAmount}
-                                                        onChange={(e) => setEditYieldAmount(Number(e.target.value))}
-                                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Unit Type</label>
-                                                    <select
-                                                        value={editYieldUnit}
-                                                        onChange={(e) => setEditYieldUnit(e.target.value)}
-                                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
-                                                    >
-                                                        <option value="Loaf">Loaf</option>
-                                                        <option value="Mini Loaf">Mini Loaf</option>
-                                                        <option value="Cup">Cup</option>
-                                                    </select>
-                                                </div>
-                                            </>
-                                        )}
-
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Baking Time (Mins)</label>
-                                            <input
-                                                type="number"
-                                                value={editDuration}
-                                                onChange={(e) => setEditDuration(Number(e.target.value))}
-                                                className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase text-green-600 mb-1">Selling Price (₦)</label>
-                                            <input
-                                                type="number"
-                                                value={editSellingPrice}
-                                                onChange={(e) => setEditSellingPrice(Number(e.target.value))}
-                                                className="w-full p-3 bg-green-50 text-green-700 rounded-xl font-black border border-green-100 outline-none focus:border-green-500 transition-colors"
-                                                placeholder="0.00"
-                                            />
-                                            <div className="flex gap-4 mt-2 text-xs font-bold">
-                                                <span className={profit >= 0 ? "text-green-600" : "text-red-500"}>
-                                                    Profit: ₦{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                </span>
-                                                <span className={margin >= 30 ? "text-green-600" : "text-orange-500"}>
-                                                    Margin: {margin.toFixed(1)}%
-                                                </span>
+                                            <div className="flex justify-between w-full border-t border-slate-50 pt-1">
+                                                <span className={profit >= 0 ? "text-green-600" : "text-red-500"}>₦{profit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                                <span className={margin >= 30 ? "text-green-600" : "text-orange-500"}>{margin.toFixed(0)}%</span>
                                             </div>
                                         </div>
-                                    </>
-                                )}
-                            </div>
+                                        {/* 2, 3, 4 Layers */}
+                                        {[2, 3, 4].map(layerCount => {
+                                            const price = editLayerPrices[layerCount] || 0;
+                                            const estimatedCost = getLayerCost(layerCount);
+                                            const layerProfit = price - estimatedCost;
+                                            const layerMargin = price > 0 ? (layerProfit / price) * 100 : 0;
+                                            return (
+                                                <div key={layerCount} className="bg-white p-2 rounded border border-slate-100 shadow-sm flex flex-col items-center text-xs min-w-0">
+                                                    <div className="flex justify-between items-center w-full mb-1">
+                                                        <label className="font-bold uppercase text-slate-400">{layerCount}L</label>
+                                                        <span className="font-bold text-slate-300 bg-slate-50 px-1 py-0.5 rounded">₦{Math.ceil(estimatedCost).toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 w-full mb-1">
+                                                        <span className="text-slate-400">₦</span>
+                                                        <input
+                                                            type="number"
+                                                            value={price === 0 ? '' : price}
+                                                            onChange={(e) => setEditLayerPrices(prev => ({ ...prev, [layerCount]: Number(e.target.value) }))}
+                                                            className="w-full text-base font-bold text-slate-700 outline-none placeholder:text-slate-200 p-1"
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                    <div className="flex justify-between w-full border-t border-slate-50 pt-1">
+                                                        <span className={layerProfit >= 0 ? "text-slate-600" : "text-red-400"}>₦{layerProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                                        <span className={layerMargin >= 30 ? "text-slate-600" : "text-orange-400"}>{layerMargin.toFixed(0)}%</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ) : (
+                                // Original simple pricing for Non-Recipes (Fillings/Extras)
+                                <div>
+                                    <label className="block text-xs font-bold uppercase text-green-600 mb-1">Selling Price (₦)</label>
+                                    <input
+                                        type="number"
+                                        value={editSellingPrice}
+                                        onChange={(e) => setEditSellingPrice(Number(e.target.value))}
+                                        className="w-full p-3 bg-green-50 text-green-700 rounded-xl font-black border border-green-100 outline-none focus:border-green-500 transition-colors"
+                                        placeholder="0.00"
+                                    />
+                                    <div className="flex gap-4 mt-2 text-xs font-bold">
+                                        <span className={profit >= 0 ? "text-green-600" : "text-red-500"}>
+                                            Profit: ₦{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                        <span className={margin >= 30 ? "text-green-600" : "text-orange-500"}>
+                                            Margin: {margin.toFixed(1)}%
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
 
                             {activeTab !== 'extras' && (
                                 <>
@@ -764,24 +926,43 @@ export default function RecipeCreator() {
                                             <div className="flex justify-between items-end mb-4">
                                                 <h3 className="font-bold text-slate-700">Ingredients List</h3>
                                                 <div className="flex gap-2">
-                                                    <select
-                                                        className="p-2 bg-[#FAFAFA] rounded-lg text-sm border border-[#E8ECE9] outline-none max-w-[200px]"
-                                                        onChange={(e) => {
-                                                            if (e.target.value === 'NEW') {
-                                                                setIsAddIngredientModalOpen(true);
-                                                                e.target.value = "";
-                                                            } else if (e.target.value) {
-                                                                handleAddIngredient(e.target.value);
-                                                                e.target.value = "";
-                                                            }
-                                                        }}
+                                                    <button
+                                                        className="px-3 py-2 rounded-lg bg-[#FDFBF7] border border-[#E8ECE9] text-xs font-bold text-[#B03050] hover:bg-pink-50"
+                                                        onClick={() => setIsAddIngredientModalOpen(true)}
                                                     >
-                                                        <option value="">+ Add Ingredient...</option>
-                                                        <option value="NEW" className="font-bold text-[#B03050]">+ Create New Item</option>
-                                                        <optgroup label="Pantry Items">
-                                                            {ingredients.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                                                        </optgroup>
-                                                    </select>
+                                                        + New Ingredient
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {/* Grouped ingredient picker with checkboxes */}
+                                            <div className="mb-4 p-2 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9]">
+                                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Quick Add Ingredients</label>
+                                                <div className="max-h-48 overflow-y-auto grid grid-cols-1 md:grid-cols-4 gap-x-1 gap-y-1">
+                                                    {categories.map((cat, idx) => (
+                                                        <div key={cat} className={idx !== 0 ? 'pl-2 border-l border-slate-200' : ''}>
+                                                            <div className="font-bold text-xs text-slate-400 mb-1 mt-2">{cat}</div>
+                                                            {ingredients.filter(i => i.category === cat).map(i => {
+                                                                const checked = editIngredients.some(ei => ei.ingredient_id === i.id);
+                                                                return (
+                                                                    <label key={i.id} className="flex items-center gap-2 text-xs mb-1 cursor-pointer">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={checked}
+                                                                            onChange={e => {
+                                                                                if (e.target.checked) {
+                                                                                    handleAddIngredient(i.id);
+                                                                                } else {
+                                                                                    const idx = editIngredients.findIndex(ei => ei.ingredient_id === i.id);
+                                                                                    if (idx !== -1) handleRemoveIngredient(idx);
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                        <span>{i.name}</span>
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
 
@@ -879,102 +1060,104 @@ export default function RecipeCreator() {
                 </div>
             </div>
             {/* Add Ingredient Modal */}
-            {isAddIngredientModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-serif text-slate-900">Add New Ingredient</h2>
-                            <button onClick={() => setIsAddIngredientModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
-                                <X className="w-5 h-5 text-slate-400" />
-                            </button>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Name</label>
-                                <input
-                                    value={newIngredient.name}
-                                    onChange={e => setNewIngredient({ ...newIngredient, name: e.target.value })}
-                                    className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
-                                    placeholder="e.g. Almond Flour"
-                                />
+            {
+                isAddIngredientModalOpen && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-serif text-slate-900">Add New Ingredient</h2>
+                                <button onClick={() => setIsAddIngredientModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                                    <X className="w-5 h-5 text-slate-400" />
+                                </button>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Category</label>
-                                    <select
-                                        value={newIngredient.category}
-                                        onChange={e => setNewIngredient({ ...newIngredient, category: e.target.value })}
-                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
-                                    >
-                                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                                        <option value="Other">Other</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Unit</label>
+                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Name</label>
                                     <input
-                                        value={newIngredient.unit}
-                                        onChange={e => setNewIngredient({ ...newIngredient, unit: e.target.value })}
+                                        value={newIngredient.name}
+                                        onChange={e => setNewIngredient({ ...newIngredient, name: e.target.value })}
                                         className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
-                                        placeholder="e.g. g, pcs"
+                                        placeholder="e.g. Almond Flour"
                                     />
                                 </div>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Current Stock</label>
-                                    <input
-                                        type="number"
-                                        value={newIngredient.current_stock}
-                                        onChange={e => setNewIngredient({ ...newIngredient, current_stock: Number(e.target.value) })}
-                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
-                                    />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Category</label>
+                                        <select
+                                            value={newIngredient.category}
+                                            onChange={e => setNewIngredient({ ...newIngredient, category: e.target.value })}
+                                            className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
+                                        >
+                                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Unit</label>
+                                        <input
+                                            value={newIngredient.unit}
+                                            onChange={e => setNewIngredient({ ...newIngredient, unit: e.target.value })}
+                                            className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
+                                            placeholder="e.g. g, pcs"
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Min Level</label>
-                                    <input
-                                        type="number"
-                                        value={newIngredient.min_stock_level}
-                                        onChange={e => setNewIngredient({ ...newIngredient, min_stock_level: Number(e.target.value) })}
-                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
-                                    />
-                                </div>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Purchase Price (₦)</label>
-                                    <input
-                                        type="number"
-                                        value={newIngredient.purchase_price}
-                                        onChange={e => setNewIngredient({ ...newIngredient, purchase_price: Number(e.target.value) })}
-                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
-                                    />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Current Stock</label>
+                                        <input
+                                            type="number"
+                                            value={newIngredient.current_stock}
+                                            onChange={e => setNewIngredient({ ...newIngredient, current_stock: Number(e.target.value) })}
+                                            className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Min Level</label>
+                                        <input
+                                            type="number"
+                                            value={newIngredient.min_stock_level}
+                                            onChange={e => setNewIngredient({ ...newIngredient, min_stock_level: Number(e.target.value) })}
+                                            className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">For Qty</label>
-                                    <input
-                                        type="number"
-                                        value={newIngredient.purchase_quantity}
-                                        onChange={e => setNewIngredient({ ...newIngredient, purchase_quantity: Number(e.target.value) })}
-                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
-                                    />
-                                </div>
-                            </div>
 
-                            <button
-                                onClick={handleCreateIngredient}
-                                className="w-full py-4 bg-[#B03050] text-white rounded-xl font-bold hover:bg-[#902040] transition-all mt-4 shadow-lg shadow-pink-200"
-                            >
-                                Create & Add to Recipe
-                            </button>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Purchase Price (₦)</label>
+                                        <input
+                                            type="number"
+                                            value={newIngredient.purchase_price}
+                                            onChange={e => setNewIngredient({ ...newIngredient, purchase_price: Number(e.target.value) })}
+                                            className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">For Qty</label>
+                                        <input
+                                            type="number"
+                                            value={newIngredient.purchase_quantity}
+                                            onChange={e => setNewIngredient({ ...newIngredient, purchase_quantity: Number(e.target.value) })}
+                                            className="w-full p-3 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-bold text-slate-700 focus:border-[#B03050] transition-colors"
+                                        />
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={handleCreateIngredient}
+                                    className="w-full py-4 bg-[#B03050] text-white rounded-xl font-bold hover:bg-[#902040] transition-all mt-4 shadow-lg shadow-pink-200"
+                                >
+                                    Create & Add to Recipe
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
             <ConfirmationModal
                 isOpen={modalConfig.isOpen}
                 onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
@@ -985,6 +1168,6 @@ export default function RecipeCreator() {
                 confirmText={modalConfig.confirmText}
                 cancelText={modalConfig.cancelText}
             />
-        </div>
+        </div >
     );
 }
