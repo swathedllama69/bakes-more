@@ -32,7 +32,14 @@ export default function Sidebar() {
                 {/* Logo Section */}
                 <div className="flex flex-col items-center justify-center border-b border-slate-50 gap-3 p-6 bg-gradient-to-b from-white to-pink-50/30">
                     <div className="relative w-20 h-20 lg:w-28 lg:h-28 drop-shadow-xl hover:scale-105 transition-transform duration-500 ease-out">
-                        <Image src="/logo.png" alt="Logo" fill className="object-contain" priority />
+                        <Image
+                            src="/logo.png"
+                            alt="Logo"
+                            fill
+                            sizes="(min-width: 1024px) 112px, 80px"
+                            className="object-contain"
+                            priority
+                        />
                     </div>
                     <div className="w-full hidden lg:block">
                         <h1 className="text-lg text-[#B03050] tracking-widest uppercase font-bold text-center">Bakes & More</h1>

@@ -609,6 +609,7 @@ export default function RecipeCreator() {
                                                 className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
                                             >
                                                 <option value="Cake">Cake (Round/Square)</option>
+                                                <option value="Dessert">Dessert</option>
                                                 <option value="Cupcake">Cupcakes</option>
                                                 <option value="Loaf">Loaf / Bread</option>
                                                 <option value="Cookie">Cookies</option>
