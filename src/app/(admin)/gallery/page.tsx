@@ -200,10 +200,6 @@ export default function GalleryManager() {
 
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">
-                            Image URL <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
                             Upload Image <span className="text-red-500">*</span>
                         </label>
                         <input
@@ -219,6 +215,10 @@ export default function GalleryManager() {
                         )}
                         <p className="text-xs text-slate-400 mt-1">
                             Save image from Instagram and upload here
+                        </p>
+                    </div>
+
+                    <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">
                             Caption (Optional)
                         </label>
