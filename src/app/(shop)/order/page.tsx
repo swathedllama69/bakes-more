@@ -9,6 +9,7 @@ import Link from "next/link";
 import CakeModel from "@/components/cake-builder/CakeModel";
 import { NewOrderAdminTemplate, NewOrderCustomerTemplate, CustomOrderAdminTemplate } from "@/lib/email-templates";
 import { getAdminEmail } from "@/lib/settings";
+import { getAvailableCakes, getWhippedCreamPrice } from "@/lib/constants/pricing";
 
 export default function OrderPage() {
     // Data State
@@ -20,8 +21,10 @@ export default function OrderPage() {
     // Selection State
     const [step, setStep] = useState(1); // 1: Size/Layers, 2: Flavors/Fillings, 3: Toppers, 4: Review
     const [shape, setShape] = useState<'round' | 'square' | 'heart'>('round');
-    const [size, setSize] = useState(8);
-    const [layers, setLayers] = useState(2);
+    const availableCakes = getAvailableCakes();
+    const defaultCake = availableCakes[0];
+    const [size, setSize] = useState(defaultCake?.inches || 8);
+    const [layers, setLayers] = useState(defaultCake?.layers || 2);
 
     // Layer Configuration
     const [layerFlavors, setLayerFlavors] = useState<{ [key: number]: string }>({}); // layerIndex -> flavorId
@@ -80,16 +83,9 @@ export default function OrderPage() {
     const calculatePrice = () => {
         let price = 0;
 
-        // Base Price (Size & Layers)
-        // Simplified logic: Base 6" 1 layer = 5000. Scale by volume.
-        const baseVolume = Math.PI * 3 * 3 * 2; // 6" round, 2" high
-        const currentRadius = size / 2;
-        const currentVolume = ((shape === 'round' || shape === 'heart') ? Math.PI * currentRadius * currentRadius : size * size) * (layers * 2);
-
-        const volumeRatio = currentVolume / baseVolume;
-        const baseRate = 5000; // Base rate for standard cake batter
-
-        price += baseRate * volumeRatio;
+        // Base Price from official whipped-cream price list
+        const basePrice = getWhippedCreamPrice(size, layers) || 0;
+        price += basePrice;
 
         // Add Flavor Costs (Premium flavors might cost more, but assuming base price covers standard)
         // If we had specific prices per flavor, we'd add them here.
@@ -387,7 +383,7 @@ export default function OrderPage() {
                     </div>
 
                     <h1 className="text-4xl font-serif text-[#B03050] mb-2">Build Your Cake</h1>
-                    <p className="text-slate-500 mb-8">Customize every layer to your taste.</p>
+                    <p className="text-slate-500 mb-8">Choose a size/layer combo from the price list, then add fillings & toppers.</p>
 
                     {/* Progress Steps */}
                     <div className="flex items-center gap-2 mb-12">
@@ -487,42 +483,36 @@ export default function OrderPage() {
                                         </select>
                                     </div>
 
-                                    {i < layers - 1 && (
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Filling (Optional)</label>
-                                            <select
-                                                value={layerFillings[i] || ""}
-                                                onChange={(e) => handleLayerFillingChange(i, e.target.value)}
-                                                className="w-full p-3 bg-white border border-slate-200 rounded-xl font-medium outline-none focus:border-[#B03050] focus:ring-4 focus:ring-[#B03050]/10 transition-all shadow-sm"
-                                            >
-                                                <option value="">No Filling</option>
-                                                {fillings.map(f => (
-                                                    <option key={f.id} value={f.id}>{f.name} (+₦{f.price || 1000})</option>
-                                                ))}
-                                            </select>
+                                    {step === 1 && (
+                                        <div className="space-y-10">
+                                            <section>
+                                                <h3 className="text-xl font-serif font-bold mb-4">1. Pick a cake size & layers (priced)</h3>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                    {availableCakes.map((cake) => {
+                                                        const isActive = size === cake.inches && layers === cake.layers;
+                                                        return (
+                                                            <button
+                                                                key={`${cake.inches}-${cake.layers}`}
+                                                                onClick={() => { setSize(cake.inches); setLayers(cake.layers); }}
+                                                                className={`p-4 rounded-2xl border-2 transition-all text-left shadow-sm ${isActive ? 'border-[#B03050] bg-[#B03050] text-white shadow-lg' : 'border-slate-200 text-slate-700 hover:border-[#B03050]'}`}
+                                                            >
+                                                                <div className="flex items-center justify-between">
+                                                                    <div>
+                                                                        <p className="text-xs uppercase opacity-70">Whipped Cream</p>
+                                                                        <p className="text-xl font-bold">{cake.inches}" · {cake.layers} Layer{cake.layers > 1 ? 's' : ''}</p>
+                                                                    </div>
+                                                                    <span className="text-sm font-bold px-3 py-1 rounded-full bg-white/20 border border-white/30">
+                                                                        ₦{cake.price.toLocaleString()}
+                                                                    </span>
+                                                                </div>
+                                                                <p className={`mt-2 text-sm ${isActive ? 'text-white/80' : 'text-slate-500'}`}>Price matches your official list.</p>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </section>
                                         </div>
                                     )}
-                                </div>
-                            ))}
-
-                            <div className="flex gap-4 mt-8">
-                                <button onClick={() => setStep(1)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all">
-                                    Back
-                                </button>
-                                <button onClick={() => setStep(3)} className="flex-[2] py-4 bg-[#B03050] text-white rounded-xl font-bold text-lg shadow-lg hover:bg-[#902040] transition-all flex items-center justify-center gap-2">
-                                    Next: Toppers <ChevronRight className="w-5 h-5" />
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {step === 3 && (
-                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-                            <h3 className="text-xl font-serif font-bold mb-4">Add Extras & Toppers</h3>
-
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                {toppers.map(t => (
-                                    <button
                                         key={t.id}
                                         onClick={() => toggleTopper(t.id)}
                                         className={`p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden group ${selectedToppers.includes(t.id) ? 'border-[#B03050] bg-pink-50' : 'border-slate-200 hover:border-slate-300'}`}
