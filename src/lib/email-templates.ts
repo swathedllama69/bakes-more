@@ -18,7 +18,7 @@ export const getEmailStyles = () => `
 const getFooterContent = () => `
     <div class="footer">
       <div style="margin-bottom: 15px;">
-        <img src="cid:logo" alt="Bakes & More" width="50" height="50" style="display: block; margin: 0 auto;" />
+        <img src="https://bakesandmore.com.ng/logo.png" alt="Bakes & More" width="50" height="50" style="display: block; margin: 0 auto;" />
       </div>
       <p><strong>Bakes & More</strong> - Crafted with Love</p>
       <p>
@@ -91,7 +91,7 @@ export const NewOrderCustomerTemplate = (order: any) => `
 <body>
   <div class="container">
     <div class="header">
-      <img src="cid:logo" alt="Bakes & More" width="60" style="display: block; margin: 0 auto 10px auto;" />
+      <img src="https://bakesandmore.com.ng/logo.png" alt="Bakes & More" width="60" style="display: block; margin: 0 auto 10px auto;" />
       <h1>Order Received! 🎂</h1>
     </div>
     <div class="content">
@@ -143,7 +143,7 @@ export const OrderConfirmationTemplate = (order: any, receiptUrl?: string) => `
 <body>
   <div class="container">
     <div class="header">
-        <img src="cid:logo" alt="Bakes & More" width="60" style="display: block; margin: 0 auto 10px auto;" />
+        <img src="https://bakesandmore.com.ng/logo.png" alt="Bakes & More" width="60" style="display: block; margin: 0 auto 10px auto;" />
       <h1>Order Confirmed! ✅</h1>
     </div>
     <div class="content">
@@ -198,7 +198,7 @@ export const PaymentReceivedTemplate = (order: any) => `
 <body>
   <div class="container">
     <div class="header">
-        <img src="cid:logo" alt="Bakes & More" width="60" style="display: block; margin: 0 auto 10px auto;" />
+        <img src="https://bakesandmore.com.ng/logo.png" alt="Bakes & More" width="60" style="display: block; margin: 0 auto 10px auto;" />
       <h1>Payment Verified! 🎉</h1>
     </div>
     <div class="content">

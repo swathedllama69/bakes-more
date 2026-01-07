@@ -33,11 +33,11 @@ export default function GalleryManager() {
     };
 
     const addInstagramPost = async () => {
-        if (!newUrl.trim()) {
+        if (!newUrl.trim() || !imageUrl.trim()) {
             setModalConfig({
                 isOpen: true,
                 title: "Missing Information",
-                message: "Please provide Instagram URL",
+                message: "Please provide both Instagram URL and image URL from imgbb.com",
                 type: "danger",
                 onConfirm: () => setModalConfig({ ...modalConfig, isOpen: false }),
                 onClose: () => setModalConfig({ ...modalConfig, isOpen: false })
@@ -70,25 +70,8 @@ export default function GalleryManager() {
             let thumbnailUrl = '';
             let postCaption = caption;
 
-            try {
-                const response = await fetch('/api/instagram/oembed', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: newUrl })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    thumbnailUrl = data.thumbnail_url || '';
-                    if (!postCaption) postCaption = data.title || '';
-                }
-            } catch (e) {
-                console.warn('Could not fetch thumbnail, will use embed');
-            }
-
-            // Use embed URL as fallback
-            const embedUrl = `https://www.instagram.com/p/${postId}/embed/`;
-            const finalImageUrl = imageUrl.trim() || thumbnailUrl || embedUrl;
+            // Use the provided image URL directly
+            const finalImageUrl = imageUrl.trim();
 
             // Save to database
             const { error } = await supabase
@@ -98,11 +81,7 @@ export default function GalleryManager() {
                     image_url: finalImageUrl,
                     thumbnail_url: finalImageUrl,
                     caption: postCaption,
-                    media_type: finalImageUrl.includes('/embed/') ? 'EMBED' : 'IMAGE',
-                    display_order: items.length
-                });
-
-            if (error) {
+                    media_type: 'IMAGE',
                 if (error.code === '23505') {
                     throw new Error('This Instagram post is already in your gallery!');
                 }
@@ -206,17 +185,17 @@ export default function GalleryManager() {
 
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">
-                            Image URL (Optional)
+                            Image URL <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
                             value={imageUrl}
                             onChange={(e) => setImageUrl(e.target.value)}
-                            placeholder="Right-click Instagram image → Copy image address"
+                            placeholder="Paste imgbb.com direct link here"
                             className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:border-[#B03050]"
                         />
                         <p className="text-xs text-slate-400 mt-1">
-                            💡 Optional: Paste the direct Instagram image URL for better performance
+                            💡 Upload image to imgbb.com and paste the direct link
                         </p>
                     </div>
 
@@ -253,13 +232,15 @@ export default function GalleryManager() {
                 </div>
 
                 <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <p className="text-sm font-bold text-blue-900 mb-2">✨ How to add Instagram posts:</p>
+                    <p className="text-sm font-bold text-blue-900 mb-2">✨ How to add images:</p>
                     <ol className="text-xs text-blue-800 space-y-1 ml-4 list-decimal">
-                        <li>Go to Instagram post in browser → Click ••• → Copy link</li>
-                        <li>Paste the URL in "Instagram Post URL" field above</li>
-                        <li><strong>Optional:</strong> Right-click image → "Copy image address" → Paste in "Image URL" field</li>
+                        <li>Go to Instagram post in browser → Click ••• → Copy link → Paste in "Instagram Post URL"</li>
+                        <li>Right-click Instagram image → Save image to computer</li>
+                        <li>Upload to <a href="https://imgbb.com" target="_blank" rel="noopener noreferrer" className="underline font-bold">imgbb.com</a> (free, no signup)</li>
+                        <li>Copy the "Direct link" → Paste in "Image URL" field</li>
                         <li>Click "Add to Gallery" - done! 🎉</li>
                     </ol>
+                    <p className="text-xs text-blue-700 mt-2 italic">💡 imgbb.com is free and works perfectly for gallery images!</p>
                 </div>
             </div>
 
@@ -285,20 +266,11 @@ export default function GalleryManager() {
                                 {/* Image */}
                                 <div className="aspect-square bg-slate-100 relative">
                                     {item.thumbnail_url ? (
-                                        item.media_type === 'EMBED' || item.thumbnail_url.includes('/embed/') ? (
-                                            <iframe
-                                                src={item.thumbnail_url}
-                                                className="w-full h-full border-0"
-                                                scrolling="no"
-                                                allowTransparency
-                                            />
-                                        ) : (
-                                            <img
-                                                src={`/api/image-proxy?url=${encodeURIComponent(item.thumbnail_url)}`}
-                                                alt={item.caption || 'Gallery item'}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        )
+                                        <img
+                                            src={item.thumbnail_url}
+                                            alt={item.caption || 'Gallery item'}
+                                            className="w-full h-full object-cover"
+                                        />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center">
                                             <ImageIcon className="w-12 h-12 text-slate-300" />

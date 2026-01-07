@@ -138,21 +138,12 @@ export default function PublicGalleryPage() {
 
                                             {/* Image */}
                                             <div className="relative overflow-hidden">
-                                                {item.media_type === 'EMBED' || (item.thumbnail_url && item.thumbnail_url.includes('/embed/')) ? (
-                                                    <iframe
-                                                        src={item.thumbnail_url || item.image_url}
-                                                        className="w-full aspect-square border-0"
-                                                        scrolling="no"
-                                                        allowTransparency
-                                                    />
-                                                ) : (
-                                                    <img
-                                                        src={`/api/image-proxy?url=${encodeURIComponent(item.thumbnail_url || item.image_url)}`}
-                                                        alt={item.caption || 'Gallery image'}
-                                                        className="w-full h-auto object-cover group-hover:scale-110 transition-transform duration-500"
-                                                        loading="lazy"
-                                                    />
-                                                )}
+                                                <img
+                                                    src={item.thumbnail_url || item.image_url}
+                                                    alt={item.caption || 'Gallery image'}
+                                                    className="w-full h-auto object-cover group-hover:scale-110 transition-transform duration-500"
+                                                    loading="lazy"
+                                                />
                                                 {/* Overlay on hover */}
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end justify-center pb-6">
                                                     <div className="text-white font-bold text-sm flex items-center gap-2">
@@ -230,7 +221,7 @@ export default function PublicGalleryPage() {
                             {/* Image */}
                             <div className="relative">
                                 <img
-                                    src={`/api/image-proxy?url=${encodeURIComponent(selectedItem.image_url || selectedItem.thumbnail_url)}`}
+                                    src={selectedItem.image_url || selectedItem.thumbnail_url}
                                     alt={selectedItem.caption || 'Gallery image'}
                                     className="w-full h-auto max-h-[70vh] object-contain rounded-2xl"
                                 />

@@ -42,6 +42,8 @@ export async function updateSession(request: NextRequest) {
         !request.nextUrl.pathname.startsWith('/login') &&
         !request.nextUrl.pathname.startsWith('/forgot-password') &&
         !request.nextUrl.pathname.startsWith('/auth') &&
+        !request.nextUrl.pathname.startsWith('/public-gallery') &&
+        !request.nextUrl.pathname.startsWith('/pay') &&
         request.nextUrl.pathname !== '/' // Allow landing page if it exists, or force login
     ) {
         // no user, potentially redirect to login
@@ -58,7 +60,7 @@ export async function updateSession(request: NextRequest) {
         // Let's redirect to login if accessing admin routes without user
         // Admin routes seem to be: /dashboard, /orders, /customers, /Calculator, /recipes, /pantry, /reports, /settings
 
-        const protectedPaths = ['/dashboard', '/orders', '/customers', '/Calculator', '/recipes', '/pantry', '/reports', '/settings', '/estimator'];
+        const protectedPaths = ['/dashboard', '/orders', '/customers', '/Calculator', '/recipes', '/pantry', '/reports', '/settings', '/estimator', '/gallery', '/timer', '/planner', '/emails'];
         const isProtected = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path));
 
         if (isProtected) {

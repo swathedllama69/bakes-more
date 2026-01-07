@@ -35,9 +35,8 @@ export async function POST(request: Request) {
                 {
                     filename: 'logo.png',
                     content: logoBase64,
-                    cid: 'logo'
                 }
-            ] : undefined,
+            ] as any : undefined,
         });
 
         // Log to Supabase
