@@ -8,7 +8,7 @@ export default function GalleryManager() {
     const [items, setItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [newUrl, setNewUrl] = useState("");
-    const [imageUrl, setImageUrl] = useState("");
+    const [imageFile, setImageFile] = useState<File | null>(null);
     const [caption, setCaption] = useState("");
     const [adding, setAdding] = useState(false);
     const [modalConfig, setModalConfig] = useState<any>({ isOpen: false, onConfirm: () => { } });
@@ -33,11 +33,11 @@ export default function GalleryManager() {
     };
 
     const addInstagramPost = async () => {
-        if (!newUrl.trim() || !imageUrl.trim()) {
+        if (!newUrl.trim() || !imageFile) {
             setModalConfig({
                 isOpen: true,
                 title: "Missing Information",
-                message: "Please provide both Instagram URL and image URL from imgbb.com",
+                message: "Please provide both Instagram URL and upload an image file",
                 type: "danger",
                 onConfirm: () => setModalConfig({ ...modalConfig, isOpen: false }),
                 onClose: () => setModalConfig({ ...modalConfig, isOpen: false })
@@ -66,22 +66,34 @@ export default function GalleryManager() {
                 throw new Error('This Instagram post is already in your gallery!');
             }
 
-            // Try to fetch thumbnail from oEmbed
-            let thumbnailUrl = '';
-            let postCaption = caption;
+            // Upload image to Supabase Storage
+            const fileExt = imageFile.name.split('.').pop();
+            const fileName = `${postId}-${Date.now()}.${fileExt}`;
+            const filePath = `gallery/${fileName}`;
 
-            // Use the provided image URL directly
-            const finalImageUrl = imageUrl.trim();
+            const { error: uploadError } = await supabase.storage
+                .from('gallery-images')
+                .upload(filePath, imageFile, {
+                    cacheControl: '3600',
+                    upsert: false
+                });
 
-            // Save to database
-            const { error } = await supabase
-                .from("gallery_items")
+            if (uploadError) {
+                throw new Error(`Failed to upload image: ${uploadError.message}`);
+            }
+
+            // G}
+
+            setNewUrl("");
+            setImageFile(nulllery_items")
                 .insert({
                     instagram_url: newUrl,
-                    image_url: finalImageUrl,
-                    thumbnail_url: finalImageUrl,
-                    caption: postCaption,
+                    image_url: publicUrl,
+                    thumbnail_url: publicUrl,
+                    caption: caption || '',
                     media_type: 'IMAGE',
+                    display_order: items.length
+                });
                 if (error.code === '23505') {
                     throw new Error('This Instagram post is already in your gallery!');
                 }
@@ -189,17 +201,21 @@ export default function GalleryManager() {
                         </label>
                         <input
                             type="text"
-                            value={imageUrl}
-                            onChange={(e) => setImageUrl(e.target.value)}
-                            placeholder="Paste imgbb.com direct link here"
+                            Upload Image <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setImageFile(e.target.files?.[0] || null)}
                             className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:border-[#B03050]"
                         />
+                        {imageFile && (
+                            <p className="text-xs text-green-600 mt-1">
+                                ✓ Selected: {imageFile.name}
+                            </p>
+                        )}
                         <p className="text-xs text-slate-400 mt-1">
-                            💡 Upload image to imgbb.com and paste the direct link
-                        </p>
-                    </div>
-
-                    <div>
+                            Save image from Instagram and upload here
                         <label className="block text-sm font-bold text-slate-700 mb-2">
                             Caption (Optional)
                         </label>
@@ -214,7 +230,7 @@ export default function GalleryManager() {
 
                     <button
                         onClick={addInstagramPost}
-                        disabled={adding || !newUrl.trim() || !imageUrl.trim()}
+                        disabled={adding || !newUrl.trim() || !imageFile}
                         className="w-full px-6 py-3 bg-[#B03050] text-white rounded-xl font-bold hover:bg-[#902040] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         {adding ? (
@@ -230,13 +246,12 @@ export default function GalleryManager() {
                         )}
                     </button>
                 </div>
-
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <p className="text-sm font-bold text-blue-900 mb-2">✨ How to add images:</p>
-                    <ol className="text-xs text-blue-800 space-y-1 ml-4 list-decimal">
-                        <li>Go to Instagram post in browser → Click ••• → Copy link → Paste in "Instagram Post URL"</li>
+→ Click ••• → Copy link → Paste above</li>
                         <li>Right-click Instagram image → Save image to computer</li>
-                        <li>Upload to <a href="https://imgbb.com" target="_blank" rel="noopener noreferrer" className="underline font-bold">imgbb.com</a> (free, no signup)</li>
+                        <li>Upload the file above</li>
+                        <li>Click "Add to Gallery" - done! 🎉</li>
+                    </ol>
+                    <p className="text-xs text-blue-700 mt-2 italic">💡 Images are stored in your Supabase project font-bold">imgbb.com</a> (free, no signup)</li>
                         <li>Copy the "Direct link" → Paste in "Image URL" field</li>
                         <li>Click "Add to Gallery" - done! 🎉</li>
                     </ol>
