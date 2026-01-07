@@ -9,7 +9,7 @@ import Link from "next/link";
 import CakeModel from "@/components/cake-builder/CakeModel";
 import { NewOrderAdminTemplate, NewOrderCustomerTemplate, CustomOrderAdminTemplate } from "@/lib/email-templates";
 import { getAdminEmail } from "@/lib/settings";
-import { getAvailableCakes, getWhippedCreamPrice } from "@/lib/constants/pricing";
+import { getAvailableSizes, getLayerPricesForSize, getWhippedCreamPrice } from "@/lib/constants/pricing";
 
 export default function OrderPage() {
     // Data State
@@ -21,10 +21,10 @@ export default function OrderPage() {
     // Selection State
     const [step, setStep] = useState(1); // 1: Size/Layers, 2: Flavors/Fillings, 3: Toppers, 4: Review
     const [shape, setShape] = useState<'round' | 'square' | 'heart'>('round');
-    const availableCakes = getAvailableCakes();
-    const defaultCake = availableCakes[0];
-    const [size, setSize] = useState(defaultCake?.inches || 8);
-    const [layers, setLayers] = useState(defaultCake?.layers || 2);
+    const availableSizes = getAvailableSizes();
+    const defaultSize = availableSizes[0] || 8;
+    const [size, setSize] = useState(defaultSize);
+    const [layers, setLayers] = useState(2);
 
     // Layer Configuration
     const [layerFlavors, setLayerFlavors] = useState<{ [key: number]: string }>({}); // layerIndex -> flavorId
@@ -62,6 +62,33 @@ export default function OrderPage() {
         calculatePrice();
     }, [size, layers, layerFlavors, layerFillings, selectedToppers, flavors, fillings, toppers]);
 
+    // Ensure flavor/filling selections exist for current layer count
+    useEffect(() => {
+        if (!flavors || flavors.length === 0) return;
+        const defaultFlavorId = flavors[0].id;
+
+        setLayerFlavors((prev) => {
+            const next: { [key: number]: string } = { ...prev };
+            for (let i = 0; i < layers; i++) {
+                if (!next[i]) next[i] = defaultFlavorId;
+            }
+            Object.keys(next).forEach((k) => {
+                const idx = Number(k);
+                if (Number.isFinite(idx) && idx >= layers) delete next[idx];
+            });
+            return next;
+        });
+
+        setLayerFillings((prev) => {
+            const next: { [key: number]: string } = { ...prev };
+            Object.keys(next).forEach((k) => {
+                const idx = Number(k);
+                if (Number.isFinite(idx) && idx >= Math.max(0, layers - 1)) delete next[idx];
+            });
+            return next;
+        });
+    }, [layers, flavors]);
+
     const fetchOptions = async () => {
         setLoading(true);
         const { data: r } = await supabase.from('recipes').select('*').eq('category', 'Cake');
@@ -84,7 +111,7 @@ export default function OrderPage() {
         let price = 0;
 
         // Base Price from official whipped-cream price list
-        const basePrice = getWhippedCreamPrice(size, layers) || 0;
+        const basePrice = getWhippedCreamPrice(size, layers, { inferMissingOneLayer: true }) || 0;
         price += basePrice;
 
         // Add Flavor Costs (Premium flavors might cost more, but assuming base price covers standard)
@@ -609,7 +636,7 @@ export default function OrderPage() {
                                         placeholder="Phone Number"
                                     />
                                 </div>
-                                <div>
+                                <div className="md:col-span-2">
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email (Optional)</label>
                                     <input
                                         type="email"
