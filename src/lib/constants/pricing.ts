@@ -59,7 +59,7 @@ export function getWhippedCreamPrice(inches: number, layers: number): number | n
 // Get all available size/layer combinations
 export function getAvailableCakes(): Array<{ inches: number; layers: number; price: number; label: string }> {
     const cakes: Array<{ inches: number; layers: number; price: number; label: string }> = [];
-    
+
     Object.entries(WHIPPED_CREAM_PRICING).forEach(([inches, layerPrices]) => {
         Object.entries(layerPrices).forEach(([layers, price]) => {
             cakes.push({
@@ -70,7 +70,7 @@ export function getAvailableCakes(): Array<{ inches: number; layers: number; pri
             });
         });
     });
-    
+
     return cakes.sort((a, b) => a.inches - b.inches || a.layers - b.layers);
 }
 
