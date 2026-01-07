@@ -66,7 +66,6 @@ export default function MobileNav() {
                             <div className="grid grid-cols-4 gap-4">
                                 <MenuLink href="/recipes" icon={<ChefHat className="w-6 h-6" />} label="Recipes" onClick={() => setIsMoreOpen(false)} />
                                 <MenuLink href="/customers" icon={<Users className="w-6 h-6" />} label="Clients" onClick={() => setIsMoreOpen(false)} />
-                                <MenuLink href="/quotes" icon={<FileText className="w-6 h-6" />} label="Quotes" onClick={() => setIsMoreOpen(false)} />
                                 <MenuLink href="/Calculator" icon={<Calculator className="w-6 h-6" />} label="Calc" onClick={() => setIsMoreOpen(false)} />
                                 <MenuLink href="/timer" icon={<Timer className="w-6 h-6" />} label="Timer" onClick={() => setIsMoreOpen(false)} />
                                 <MenuLink href="/emails" icon={<Mail className="w-6 h-6" />} label="Emails" onClick={() => setIsMoreOpen(false)} />

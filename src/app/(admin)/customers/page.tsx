@@ -92,7 +92,7 @@ function CustomersContent() {
                 title: "Validation Error",
                 message: "Name is required",
                 type: "danger",
-                onConfirm: () => {}
+                onConfirm: () => { }
             });
             return;
         }
@@ -108,7 +108,7 @@ function CustomersContent() {
                     title: "Error",
                     message: "Error updating customer",
                     type: "danger",
-                    onConfirm: () => {}
+                    onConfirm: () => { }
                 });
             }
         } else {
@@ -121,7 +121,7 @@ function CustomersContent() {
                     title: "Error",
                     message: "Error creating customer",
                     type: "danger",
-                    onConfirm: () => {}
+                    onConfirm: () => { }
                 });
             }
         }

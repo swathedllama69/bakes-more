@@ -2,6 +2,8 @@ import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
 import { BAKERY_EMAILS } from '@/lib/constants/bakery';
 import { supabase } from '@/lib/supabase'; // Ensure this client is available on server side
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -14,11 +16,28 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: true, message: "Mock email logged (no API key)" });
         }
 
+        // Read logo file and convert to base64
+        const logoPath = join(process.cwd(), 'public', 'logo.png');
+        let logoBase64 = '';
+        try {
+            const logoBuffer = readFileSync(logoPath);
+            logoBase64 = logoBuffer.toString('base64');
+        } catch (err) {
+            console.error('Error reading logo:', err);
+        }
+
         const data = await resend.emails.send({
             from: `Bakes & More <${BAKERY_EMAILS.SENDER}>`,
             to: [to],
             subject: subject,
             html: html,
+            attachments: logoBase64 ? [
+                {
+                    filename: 'logo.png',
+                    content: logoBase64,
+                    cid: 'logo'
+                }
+            ] : undefined,
         });
 
         // Log to Supabase

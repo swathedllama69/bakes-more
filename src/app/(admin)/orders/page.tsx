@@ -5,13 +5,7 @@ import Link from "next/link";
 import { CalendarDays, Search, Plus, Clock, ChevronDown, ChevronUp, CheckCircle, Printer, Trash2, MoreHorizontal, ArrowRight, Mail } from "lucide-react";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import { OrderConfirmationTemplate, PaymentReceivedTemplate } from "@/lib/email-templates";
-import dynamic from "next/dynamic";
-import InvoicePDF from "@/components/pdf/InvoicePDF";
-
-const PDFDownloadLink = dynamic(
-    () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
-    { ssr: false }
-);
+import InvoicePDFButton from "@/components/pdf/InvoicePDFButton";
 
 export default function OrderManager() {
     const [orders, setOrders] = useState<any[]>([]);
@@ -42,11 +36,11 @@ export default function OrderManager() {
     }, []);
 
     const fetchAccountDetails = async () => {
-         const { data } = await supabase
+        const { data } = await supabase
             .from('app_settings')
             .select('value')
             .eq('key', 'account_details')
-            .single();
+            .maybeSingle();
         if (data) setAccountDetails(data.value);
     }
 
@@ -324,7 +318,7 @@ export default function OrderManager() {
                     />
                 </div>
                 <div>Order Details</div>
-                <div className="text-right">Date</div>
+                <div className="text-right">Dates</div>
                 <div className="text-right">Amount</div>
                 <div className="text-center">Status</div>
                 <div className="w-8"></div>
@@ -397,33 +391,32 @@ export default function OrderManager() {
                                                 ).join(", ")}
                                             </span>
                                             <div className="flex gap-2 justify-end mt-1 md:hidden"> {/* Mobile Invoice Link */}
-                                                 <PDFDownloadLink
-                                                    document={<InvoicePDF order={{ ...order, account_details: accountDetails }} />}
-                                                    fileName={`invoice-${order.id}.pdf`}
-                                                    className="text-xs font-bold text-[#B03050] hover:underline flex items-center gap-1"
-                                                >
-                                                    {({ loading }) => (
-                                                        <>
-                                                            <Printer className="w-3 h-3" />
-                                                            {loading ? '...' : 'Invoice'}
-                                                        </>
-                                                    )}
-                                                </PDFDownloadLink>
+                                                <InvoicePDFButton 
+                                                    order={{ ...order, account_details: accountDetails }} 
+                                                    variant="compact" 
+                                                />
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Date */}
                                     <div className="flex justify-between items-center md:block md:text-right text-sm text-slate-600 border-t md:border-none pt-2 md:pt-0 border-slate-50">
-                                        <span className="md:hidden text-xs font-bold text-slate-400 uppercase">Due Date</span>
+                                        <span className="md:hidden text-xs font-bold text-slate-400 uppercase">Dates</span>
                                         <div>
                                             <div className="flex items-center justify-end gap-2">
                                                 <Clock className="w-3 h-3 text-slate-400" />
-                                                <span className="font-medium">
+                                                <span className="font-medium text-xs">
+                                                    {new Date(order.created_at).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                            <p className="hidden md:block text-xs text-slate-400 mt-0.5">Order Date</p>
+                                            <div className="flex items-center justify-end gap-2 mt-1">
+                                                <Clock className="w-3 h-3 text-green-500" />
+                                                <span className="font-medium text-xs">
                                                     {new Date(order.delivery_date || order.created_at).toLocaleDateString()}
                                                 </span>
                                             </div>
-                                            <p className="hidden md:block text-xs text-slate-400 mt-0.5">Due Date</p>
+                                            <p className="hidden md:block text-xs text-green-600 mt-0.5 font-bold">Delivery</p>
                                         </div>
                                     </div>
 
@@ -504,7 +497,7 @@ export default function OrderManager() {
                                                                                 html: OrderConfirmationTemplate({ ...order, account_details: accountDetails }, receiptUrl)
                                                                             })
                                                                         });
-                                                                        
+
                                                                         // Update status to Confirmed in DB
                                                                         const { error: updateError } = await supabase
                                                                             .from('orders')
@@ -521,7 +514,7 @@ export default function OrderManager() {
                                                                             title: "Email Sent",
                                                                             message: "Confirmation email sent and Order status updated to Confirmed!",
                                                                             type: "success",
-                                                                            onConfirm: () => {}
+                                                                            onConfirm: () => { }
                                                                         });
                                                                     } catch (e: any) {
                                                                         setModalConfig({
@@ -529,7 +522,7 @@ export default function OrderManager() {
                                                                             title: "Error",
                                                                             message: "Failed: " + e.message,
                                                                             type: "danger",
-                                                                            onConfirm: () => {}
+                                                                            onConfirm: () => { }
                                                                         });
                                                                     }
                                                                 }
@@ -549,13 +542,11 @@ export default function OrderManager() {
                                                     </button>
                                                 )}
 
-                                                <Link
-                                                    href={`/orders/${order.id}/invoice`}
-                                                    target="_blank"
-                                                    className="flex items-center gap-2 bg-white text-slate-600 border border-slate-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors"
-                                                >
-                                                    <Printer className="w-4 h-4" /> Receipt
-                                                </Link>
+                                                <InvoicePDFButton 
+                                                    order={{ ...order, account_details: accountDetails }}
+                                                    buttonText="Receipt"
+                                                    className="flex items-center gap-2 bg-white text-slate-600 border border-slate-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                                                />
 
                                                 <Link
                                                     href={`/orders/${order.id}`}

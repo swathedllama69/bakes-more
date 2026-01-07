@@ -4,18 +4,12 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Package, Clock, ShoppingBag, AlertTriangle, Flame, DollarSign, Trash2, Edit, Plus, Printer, Save, X, ChevronDown, FileText, ChefHat, Mail, CheckCircle } from "lucide-react";
+import { ArrowLeft, Package, Clock, ShoppingBag, AlertTriangle, Flame, DollarSign, Trash2, Edit, Plus, Printer, Save, X, ChevronDown, FileText, ChefHat, Mail, CheckCircle, Calendar } from "lucide-react";
 import { calculateJobCost, ProductionSummary, ProductionItem } from "@/lib/calculations/production";
 import { getPackagingSize } from "@/lib/constants/bakery";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
-import dynamic from "next/dynamic";
-import InvoicePDF from '@/components/pdf/InvoicePDF';
+import InvoicePDFButton from '@/components/pdf/InvoicePDFButton';
 import { OrderConfirmationTemplate, PaymentReceivedTemplate } from "@/lib/email-templates";
-
-const PDFDownloadLink = dynamic(
-    () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
-    { ssr: false }
-);
 
 export default function OrderDetailsPage() {
     const { id } = useParams();
@@ -53,11 +47,11 @@ export default function OrderDetailsPage() {
     }, [id]);
 
     const fetchAccountDetails = async () => {
-         const { data } = await supabase
+        const { data } = await supabase
             .from('app_settings')
             .select('value')
             .eq('key', 'account_details')
-            .single();
+            .maybeSingle();
         if (data) setAccountDetails(data.value);
     }
 
@@ -253,7 +247,7 @@ export default function OrderDetailsPage() {
                         title: "Error Deleting Order",
                         message: "Error: " + error.message,
                         type: "danger",
-                        onConfirm: () => {}
+                        onConfirm: () => { }
                     });
                 }
                 else router.push("/orders");
@@ -382,18 +376,6 @@ export default function OrderDetailsPage() {
                                 <option value="Cancelled">Cancelled</option>
                             </select>
                         </div>
-                        <PDFDownloadLink
-                            document={<InvoicePDF order={{ ...order, account_details: accountDetails }} />}
-                            fileName={`invoice-${order.id}.pdf`}
-                            className="text-xs font-bold text-[#B03050] hover:underline flex items-center gap-1 mt-1 cursor-pointer"
-                        >
-                            {({ loading }) => (
-                                <>
-                                    <Printer className="w-3 h-3" />
-                                    {loading ? '...' : 'Download Invoice'}
-                                </>
-                            )}
-                        </PDFDownloadLink>
                         <p className="text-slate-400 font-medium flex items-center gap-2 mt-1">
                             {order.customer_id ? (
                                 <Link href={`/customers?id=${order.customer_id}`} className="hover:text-[#B03050] hover:underline transition-colors">
@@ -403,7 +385,9 @@ export default function OrderDetailsPage() {
                                 order.customer_name
                             )}
                             <span>•</span>
-                            {new Date(order.delivery_date).toLocaleDateString()}
+                            <span className="text-xs">Ordered: {new Date(order.created_at).toLocaleDateString()}</span>
+                            <span>•</span>
+                            <span className="text-xs">Delivery: {new Date(order.delivery_date).toLocaleDateString()}</span>
                         </p>
                     </div>
                 </div>
@@ -476,22 +460,7 @@ export default function OrderDetailsPage() {
                             <span>Confirm Order</span>
                         </button>
                     )}
-                    {order && (
-                        <PDFDownloadLink
-                            document={<InvoicePDF order={order} />}
-                            fileName={`Invoice-${order.id}.pdf`}
-                            className="group flex items-center gap-2 px-4 py-3 bg-white border border-[#E8ECE9] rounded-full text-slate-500 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200 transition-all shadow-sm"
-                        >
-                            {({ loading }) => (
-                                <>
-                                    <Printer className="w-4 h-4" />
-                                    <span className="text-xs font-bold hidden group-hover:inline">
-                                        {loading ? 'Loading...' : 'Invoice'}
-                                    </span>
-                                </>
-                            )}
-                        </PDFDownloadLink>
-                    )}
+                    {order && <InvoicePDFButton order={order} />}
                     <Link href={`/orders/${id}/edit`} className="group flex items-center gap-2 px-4 py-3 bg-white border border-[#E8ECE9] rounded-full text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm">
                         <Edit className="w-4 h-4" />
                         <span className="text-xs font-bold hidden group-hover:inline">Edit</span>
@@ -714,7 +683,7 @@ export default function OrderDetailsPage() {
                                             type: "success",
                                             confirmText: "OK",
                                             cancelText: "Close",
-                                            onConfirm: () => {}
+                                            onConfirm: () => { }
                                         });
                                     }}
                                     className="text-xs font-bold text-slate-400 hover:text-[#B03050] transition-colors"
@@ -731,8 +700,15 @@ export default function OrderDetailsPage() {
                             <div className="flex gap-3">
                                 <Clock className="w-5 h-5 text-slate-300" />
                                 <div>
-                                    <p className="font-bold text-slate-700">Due Date</p>
-                                    <p className="text-slate-500">{new Date(order.delivery_date).toLocaleString()}</p>
+                                    <p className="font-bold text-slate-700">Order Date</p>
+                                    <p className="text-slate-500">{new Date(order.created_at).toLocaleString()}</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-3">
+                                <Calendar className="w-5 h-5 text-slate-300" />
+                                <div>
+                                    <p className="font-bold text-slate-700">Delivery Date</p>
+                                    <p className="text-slate-500">{order.delivery_date ? new Date(order.delivery_date).toLocaleString() : 'Not set'}</p>
                                 </div>
                             </div>
                             <div className="flex gap-3">

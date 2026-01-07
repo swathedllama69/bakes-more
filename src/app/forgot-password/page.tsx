@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
             <div className="w-full max-w-md bg-white rounded-[2rem] shadow-xl border border-[#E8ECE9] overflow-hidden">
                 <div className="p-8 text-center border-b border-[#E8ECE9] bg-gradient-to-b from-white to-pink-50/30">
                     <div className="w-20 h-20 mx-auto mb-4 relative drop-shadow-xl">
-                        <Image src="/logo.png" alt="Logo" fill className="object-contain" priority />
+                        <Image src="/logo.png" alt="Logo" fill className="object-contain" priority sizes="160px" />
                     </div>
                     <h1 className="text-2xl font-serif text-[#B03050] font-bold">Reset Password</h1>
                     <p className="text-slate-400 text-sm mt-1">Enter your email to receive a reset link</p>

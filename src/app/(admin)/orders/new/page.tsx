@@ -24,7 +24,12 @@ export default function NewOrderPage() {
     const [customerName, setCustomerName] = useState("");
     const [customerPhone, setCustomerPhone] = useState("");
     const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
-    const [deliveryDate, setDeliveryDate] = useState("");
+    const [deliveryDate, setDeliveryDate] = useState(() => {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(11, 0, 0, 0);
+        return tomorrow.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+    });
     const [deliveryAddress, setDeliveryAddress] = useState("");
     const [notes, setNotes] = useState("");
     const [source, setSource] = useState("Walk-in");
@@ -289,7 +294,7 @@ export default function NewOrderPage() {
                     customer_phone: customerPhone,
                     customer_id: finalCustomerId, // Link to customer (existing or new)
                     created_at: new Date(orderDate).toISOString(),
-                    delivery_date: deliveryDate ? new Date(deliveryDate).toISOString() : null,
+                    delivery_date: new Date(deliveryDate).toISOString(),
                     notes: notes + (deliveryAddress ? `\nAddress: ${deliveryAddress}` : ""),
                     total_price: grandTotal,
                     total_cost: totalCost, // Save the estimated cost
@@ -456,11 +461,12 @@ export default function NewOrderPage() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Delivery Date & Time</label>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Delivery Date & Time <span className="text-red-500">*</span></label>
                                 <input
                                     type="datetime-local"
                                     value={deliveryDate}
                                     onChange={e => setDeliveryDate(e.target.value)}
+                                    required
                                     className="w-full p-3 bg-[#FDFBF7] border border-[#E8ECE9] rounded-xl font-medium text-slate-800 focus:outline-none focus:border-[#B03050] transition-colors"
                                 />
                             </div>

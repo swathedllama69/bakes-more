@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, ChefHat, Sparkles, Wheat, Egg, Milk, Cookie, Croissant, Cake, Utensils, IceCream, Candy, PartyPopper, Instagram, Phone } from "lucide-react";
+import GallerySection from "@/components/GallerySection";
 
 export default function LandingPage() {
   return (
@@ -9,7 +10,15 @@ export default function LandingPage() {
       <header className="p-6 flex justify-between items-center max-w-7xl mx-auto w-full">
         <div className="flex items-center gap-4">
           <div className="relative w-32 h-32 md:w-40 md:h-40">
-            <Image src="/logo.png" alt="Logo" fill className="object-contain" />
+            <Image
+              src="/logo.png"
+              alt="Bakes & More Logo"
+              fill
+              className="object-contain"
+              sizes="(max-width: 768px) 128px, 160px"
+              loading="eager"
+              priority
+            />
           </div>
           <div className="flex flex-col">
             <span className="text-3xl font-serif font-bold text-[#B03050] tracking-widest uppercase hidden md:block">Bakes & More</span>
@@ -105,12 +114,15 @@ export default function LandingPage() {
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer" />
             </Link>
 
-            <Link href="/gallery" className="px-8 py-4 bg-white text-slate-600 border border-slate-200 rounded-full font-bold text-lg hover:bg-slate-50 hover:border-slate-300 transition-all">
+            <a href="/public-gallery" className="px-8 py-4 bg-white text-slate-600 border border-slate-200 rounded-full font-bold text-lg hover:bg-slate-50 hover:border-slate-300 transition-all">
               View Gallery
-            </Link>
+            </a>
           </div>
         </div>
       </main>
+
+      {/* Gallery Section */}
+      <GallerySection />
 
       {/* Footer */}
       <footer className="p-6 text-center text-slate-400 text-sm">

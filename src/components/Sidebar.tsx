@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Calculator, ShoppingBag, ChefHat, Package, Settings, CalendarDays, ScrollText, Users, CircleDollarSign, LogOut, FileText, Timer, Mail } from "lucide-react";
+import { LayoutDashboard, Calculator, ShoppingBag, ChefHat, Package, Settings, CalendarDays, ScrollText, Users, CircleDollarSign, LogOut, FileText, Timer, Mail, ImageIcon } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 
 export default function Sidebar() {
@@ -61,12 +61,6 @@ export default function Sidebar() {
                         active={isActive('/customers')}
                     />
                     <NavItem
-                        href="/quotes"
-                        icon={<FileText className="w-5 h-5" />}
-                        label="Quotes"
-                        active={isActive('/quotes')}
-                    />
-                    <NavItem
                         href="/Calculator"
                         icon={<Calculator className="w-5 h-5" />}
                         label="Calculator"
@@ -88,30 +82,42 @@ export default function Sidebar() {
                         label="Pantry"
                         active={isActive('/pantry')}
                     />
+                    <NavItem href="/gallery"
+                        icon={<ImageIcon className="w-5 h-5" />}
+                        label="Gallery"
+                        active={isActive('/gallery')}
+                    />
                 </nav>
 
             </div>
 
             {/* Footer / Settings */}
-            <div className="p-3 lg:p-4 border-t border-slate-50 space-y-1 bg-white">
-                <NavItem href="/reports"
-                    icon={<CircleDollarSign className="w-5 h-5" />}
-                    label="Reports"
-                    active={isActive('/reports')}
-                />
-                <NavItem
-                    href="/settings"
-                    icon={<Settings className="w-5 h-5" />}
-                    label="Settings"
-                    active={isActive('/settings')}
-                />
-                <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-red-50 hover:text-red-500 group"
-                >
-                    <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    <span className="hidden lg:block font-bold text-sm tracking-wide">Logout</span>
-                </button>
+            <div className="p-3 lg:p-4 border-t border-slate-50 bg-white">
+                <div className="grid grid-cols-2 gap-1">
+                    <NavItem href="/emails"
+                        icon={<Mail className="w-5 h-5" />}
+                        label="Emails"
+                        active={isActive('/emails')}
+                    />
+                    <NavItem href="/reports"
+                        icon={<CircleDollarSign className="w-5 h-5" />}
+                        label="Reports"
+                        active={isActive('/reports')}
+                    />
+                    <NavItem
+                        href="/settings"
+                        icon={<Settings className="w-5 h-5" />}
+                        label="Settings"
+                        active={isActive('/settings')}
+                    />
+                    <button
+                        onClick={handleLogout}
+                        className="flex items-center justify-center lg:justify-start gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-slate-50 group"
+                    >
+                        <LogOut className="w-5 h-5 text-red-500 group-hover:scale-110 transition-transform" />
+                        <span className="hidden lg:block font-bold text-sm tracking-wide">Logout</span>
+                    </button>
+                </div>
             </div>
         </aside >
     );

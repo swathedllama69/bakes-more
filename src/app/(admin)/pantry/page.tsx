@@ -172,7 +172,7 @@ export default function PantryPage() {
                 title: "Error",
                 message: "Error adding ingredient: " + error.message,
                 type: "danger",
-                onConfirm: () => {}
+                onConfirm: () => { }
             });
         } else {
             setIngredients([...ingredients, data]);
@@ -211,7 +211,7 @@ export default function PantryPage() {
                 title: "Error",
                 message: "Error updating ingredient: " + error.message,
                 type: "danger",
-                onConfirm: () => {}
+                onConfirm: () => { }
             });
         } else {
             setIngredients(prev => prev.map(i => i.id === editingIngredient.id ? editingIngredient : i));
