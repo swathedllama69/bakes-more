@@ -638,7 +638,7 @@ export default function NewOrderPage() {
                                                             <option key={l} value={l}>{l} Layer ({recipe.prices[l]}₦)</option>
                                                         ));
                                                     }
-                                                    return [1,2,3,4].map(l => <option key={l} value={l}>{l} Layer</option>);
+                                                    return [1, 2, 3, 4].map(l => <option key={l} value={l}>{l} Layer</option>);
                                                 })()}
                                                 {recipes.length === 0 && <option disabled>No layers available</option>}
                                             </select>
