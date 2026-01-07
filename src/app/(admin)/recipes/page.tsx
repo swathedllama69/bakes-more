@@ -6,7 +6,7 @@ import { Plus, Trash2, Save, ChefHat, Search, ArrowRight, AlertCircle, FileText,
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 
 export default function RecipeCreator() {
-    const [activeTab, setActiveTab] = useState<'recipes' | 'fillings' | 'extras'>('recipes');
+    const [activeTab, setActiveTab] = useState<'recipes' | 'fillings' | 'desserts' | 'extras'>('recipes');
     const [editorTab, setEditorTab] = useState<'ingredients' | 'instructions'>('ingredients');
 
     const [modalConfig, setModalConfig] = useState<{
@@ -103,6 +103,14 @@ export default function RecipeCreator() {
                 .in('category', ['Topper', 'Decoration', 'Extra', 'Balloon'])
                 .order('name');
             if (data) setItems(data || []);
+        } else if (activeTab === 'desserts') {
+            // Only recipes with category Dessert
+            const { data } = await supabase
+                .from('recipes')
+                .select('*')
+                .eq('category', 'Dessert')
+                .order('name');
+            if (data) setItems(data || []);
         } else {
             const table = activeTab === 'recipes' ? 'recipes' : 'fillings';
             const { data } = await supabase.from(table).select('*').order('name');
@@ -117,9 +125,16 @@ export default function RecipeCreator() {
 
         if (activeTab === 'extras') {
             setEditCategory(item.category || "Topper");
-            setEditSellingPrice(item.purchase_price || 0); // Using purchase_price as base for now, or we need a selling_price column
+            setEditSellingPrice(item.purchase_price || 0);
             setEditImageUrl(item.image_url || "");
-            // Extras don't have ingredients list usually, they ARE the ingredient/product
+        } else if (activeTab === 'desserts') {
+            setEditDuration(item.baking_duration_minutes || 45);
+            setEditCategory("Dessert");
+            setEditInstructions(item.instructions || "");
+            setEditYieldAmount(item.yield_amount || 1);
+            setEditYieldUnit(item.yield_unit || "Unit");
+            setEditBaseSize(item.base_size_inches || null);
+            setEditSellingPrice(item.selling_price || 0);
         } else if (activeTab === 'recipes') {
             setEditDuration(item.baking_duration_minutes || 45);
             setEditCategory(item.category || "Cake");
@@ -129,16 +144,14 @@ export default function RecipeCreator() {
             setEditBaseSize(item.base_size_inches || null);
             setEditSellingPrice(item.selling_price || 0);
         } else {
-            // Fillings
-            setEditSellingPrice(item.price || 0); // Fillings table has 'price' column? Need to check schema or usage
+            setEditSellingPrice(item.price || 0);
         }
 
         setEditorTab('ingredients');
 
         if (activeTab !== 'extras') {
-            // Fetch ingredients for this item
-            const table = activeTab === 'recipes' ? 'recipe_ingredients' : 'filling_ingredients';
-            const idField = activeTab === 'recipes' ? 'recipe_id' : 'filling_id';
+            const table = (activeTab === 'recipes' || activeTab === 'desserts') ? 'recipe_ingredients' : 'filling_ingredients';
+            const idField = (activeTab === 'recipes' || activeTab === 'desserts') ? 'recipe_id' : 'filling_id';
 
             const { data } = await supabase
                 .from(table)
@@ -393,6 +406,12 @@ export default function RecipeCreator() {
                         className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'fillings' ? 'bg-[#B03050] text-white shadow-md' : 'text-slate-500 hover:bg-[#FAFAFA]'}`}
                     >
                         Fillings
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('desserts')}
+                        className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'desserts' ? 'bg-[#B03050] text-white shadow-md' : 'text-slate-500 hover:bg-[#FAFAFA]'}`}
+                    >
+                        Desserts
                     </button>
                     <button
                         onClick={() => setActiveTab('extras')}
