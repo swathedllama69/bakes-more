@@ -1,439 +1,545 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
 
-// Register local fonts (downloaded to public/fonts)
+// --- FONT REGISTRATION ---
+// Ensure these files exist in your /public/fonts/ folder
 Font.register({
   family: 'Roboto',
   fonts: [
-    { src: '/fonts/Roboto-Regular.ttf' },
-    { src: '/fonts/Roboto-Italic.ttf', fontStyle: 'italic' },
-    { src: '/fonts/Roboto-Bold.ttf', fontWeight: 'bold' }
+    { src: '/fonts/Roboto-Regular.ttf', fontWeight: 400 },
+    { src: '/fonts/Roboto-Italic.ttf', fontWeight: 400, fontStyle: 'italic' },
+    { src: '/fonts/Roboto-Bold.ttf', fontWeight: 700 },
+    { src: '/fonts/Roboto-BoldItalic.ttf', fontWeight: 700, fontStyle: 'italic' }
   ]
 });
+
+Font.register({
+  family: 'Pacifico',
+  src: '/fonts/Pacifico-Regular.ttf',
+});
+
+// --- CONSTANTS ---
+// UPDATE THIS: If '\u20A6' fails, use 'N' or 'NGN'. 
+// Your font file likely lacks the Naira glyph if it shows as '|'.
+const CURRENCY_SIGN = 'N';
+const BRAND_COLOR = '#B03050';
+const TEXT_DARK = '#1E293B';
+const TEXT_LIGHT = '#64748B';
 
 const styles = StyleSheet.create({
   page: {
     fontFamily: 'Roboto',
-    fontSize: 10,
-    padding: 25,
-    paddingTop: 30,
-    color: '#1E293B',
+    fontSize: 9,
+    padding: 30,
+    color: TEXT_DARK,
     backgroundColor: '#FFFFFF',
   },
-  
-  // Header Section
+
+  // --- HEADER ---
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 20,
     paddingBottom: 15,
-    borderBottomWidth: 3,
-    borderBottomColor: '#D4AF37',
-    backgroundColor: '#FDFBF7',
-    padding: 18,
-    borderRadius: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   brandColumn: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   logo: {
-    width: 70,
-    height: 70,
+    width: 120, // Increased size
+    height: 120,
     marginRight: 15,
-    borderWidth: 3,
-    borderColor: '#B03050',
-    borderRadius: 12,
+    borderRadius: 8,
+    objectFit: 'contain'
   },
-  brandText: {
-    justifyContent: 'center',
-  },
-  companyName: {
-    fontSize: 28,
+  brandName: {
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#B03050',
+    color: BRAND_COLOR,
+    textTransform: 'uppercase',
     letterSpacing: 1,
-    marginBottom: 4,
   },
-  companySub: {
-    fontSize: 10,
-    color: '#64748B',
-    marginTop: 2,
+  brandSub: {
+    fontSize: 14,
+    fontFamily: 'Pacifico',
+    color: TEXT_LIGHT,
+    marginTop: 4,
+  },
+  companyDetails: {
+    marginTop: 6,
+  },
+  companyText: {
+    fontSize: 9,
+    color: TEXT_LIGHT,
+    lineHeight: 1.4,
   },
 
-  invoiceMetaBox: {
+  // --- INVOICE META ---
+  invoiceMetaBlock: {
     alignItems: 'flex-end',
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
+    justifyContent: 'center'
   },
   invoiceTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 12,
+    color: TEXT_DARK,
+    marginBottom: 10,
     letterSpacing: 2,
   },
-  invoiceMetaRow: {
+  metaRow: {
     flexDirection: 'row',
-    marginBottom: 6,
+    marginBottom: 4,
+    alignItems: 'center'
   },
   metaLabel: {
-    fontSize: 10,
-    color: '#94A3B8',
-    fontWeight: 'bold',
+    fontSize: 9,
+    color: TEXT_LIGHT,
+    width: 80,
+    textAlign: 'right',
+    marginRight: 8,
   },
   metaValue: {
     fontSize: 10,
-    color: '#1E293B',
+    color: TEXT_DARK,
     fontWeight: 'bold',
+    textAlign: 'right',
   },
-  
-  // Info Section
-  infoSection: {
+
+  // --- INFO GRID ---
+  infoGrid: {
     flexDirection: 'row',
-    marginBottom: 20,
-  },
-  infoBox: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    padding: 12,
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#B03050',
-    marginRight: 15,
-  },
-  infoTitle: {
-    fontSize: 8,
-    color: '#B03050',
-    textTransform: 'uppercase',
-    fontWeight: 'bold',
-    letterSpacing: 0.8,
-    marginBottom: 6,
-  },
-  infoText: {
-    fontSize: 10,
-    color: '#334155',
-    lineHeight: 1.5,
-  },
-  infoTextBold: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 3,
-  },
-  
-  // Table with more spacing
-  tableSection: {
-    marginTop: 20,
     marginBottom: 30,
-  },
-  tableTitle: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#475569',
-    textTransform: 'uppercase',
-    marginBottom: 12,
-    letterSpacing: 1,
-  },
-  table: {
+    padding: 15,
+    backgroundColor: '#F8FAFC',
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderLeftWidth: 4,
+    borderLeftColor: BRAND_COLOR,
+  },
+  infoCol: {
+    flex: 1,
+  },
+  colLabel: {
+    fontSize: 8,
+    color: TEXT_LIGHT,
+    textTransform: 'uppercase',
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  colText: {
+    fontSize: 10,
+    color: TEXT_DARK,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  colSub: {
+    fontSize: 9,
+    color: TEXT_LIGHT,
+  },
+
+  // --- TABLE ---
+  table: {
+    marginTop: 10,
+    marginBottom: 20,
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#1E293B',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    backgroundColor: TEXT_DARK,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+    marginBottom: 6,
   },
-  headerText: {
+  th: {
+    color: '#FFFFFF',
     fontSize: 9,
     fontWeight: 'bold',
-    color: '#FFFFFF',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
+
+  // Columns
+  colDesc: { width: '50%' },
+  colQty: { width: '10%', textAlign: 'center' },
+  colPrice: { width: '20%', textAlign: 'right' },
+  colTotal: { width: '20%', textAlign: 'right' },
+
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
   },
-  tableRowAlt: {
-    backgroundColor: '#F8FAFC',
-  },
-  
-  // Columns with better spacing
-  colNum: { width: '8%' },
-  colDesc: { width: '52%' },
-  colQty: { width: '12%', textAlign: 'center' },
-  colPrice: { width: '14%', textAlign: 'right' },
-  colTotal: { width: '14%', textAlign: 'right' },
 
   itemName: {
     fontSize: 11,
     fontWeight: 'bold',
-    color: '#1E293B',
+    color: TEXT_DARK,
+    marginBottom: 2
+  },
+  itemMeta: {
+    fontSize: 9,
+    color: TEXT_LIGHT,
+    fontStyle: 'italic',
+    marginBottom: 6,
+  },
+
+  // --- BREAKDOWN ---
+  breakdownContainer: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 3,
   },
-  itemDetails: {
+  breakdownLabel: {
     fontSize: 9,
-    color: '#64748B',
-    fontStyle: 'italic',
+    color: TEXT_LIGHT,
+    paddingLeft: 8,
   },
-  cellText: {
-    fontSize: 10,
-    color: '#334155',
+  breakdownPrice: {
+    fontSize: 9,
+    color: TEXT_LIGHT,
+    fontWeight: 'bold'
   },
-  
-  // Summary with decorative elements
-  summarySection: {
+  sectionHeader: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: '#94A3B8',
+    marginTop: 4,
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // --- FOOTER & TOTALS ---
+  footerSection: {
     flexDirection: 'row',
-    marginTop: 30,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingTop: 20,
   },
   paymentBox: {
-    flex: 2,
-    backgroundColor: '#FFF7ED',
-    padding: 20,
-    borderRadius: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: '#D4AF37',
-    marginRight: 15,
+    flex: 1.5,
+    paddingRight: 40,
   },
-  paymentTitle: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#B45309',
-    textTransform: 'uppercase',
-    marginBottom: 8,
-    letterSpacing: 1,
-  },
-  paymentText: {
-    fontSize: 9,
-    color: '#78350F',
-    lineHeight: 1.6,
-  },
-  
   totalsBox: {
     flex: 1,
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    marginBottom: 6,
+    paddingVertical: 2,
   },
   totalLabel: {
     fontSize: 10,
-    color: '#64748B',
+    color: TEXT_LIGHT,
   },
   totalValue: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#1E293B',
+    color: TEXT_DARK,
   },
   grandTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 12,
-    paddingTop: 15,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#B03050',
-    borderRadius: 8,
+    paddingTop: 12,
+    borderTopWidth: 2,
+    borderTopColor: TEXT_DARK,
   },
   grandTotalLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 'bold',
-    color: '#FFFFFF',
-    letterSpacing: 1,
+    color: BRAND_COLOR,
+    textTransform: 'uppercase',
   },
   grandTotalValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: BRAND_COLOR,
   },
 
-  // Footer
-  footer: {
+  // --- PAGE FOOTER ---
+  pageFooter: {
     position: 'absolute',
     bottom: 30,
-    left: 40,
-    right: 40,
-    paddingTop: 15,
-    borderTopWidth: 2,
-    borderTopColor: '#E2E8F0',
+    left: 30,
+    right: 30,
     textAlign: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 10,
   },
   footerText: {
-    fontSize: 9,
-    color: '#94A3B8',
-    lineHeight: 1.5,
-  },
-  footerBrand: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#B03050',
-    marginTop: 4,
+    fontSize: 8,
+    color: '#CBD5E1',
   }
 });
 
+// Helper to format currency
+const formatMoney = (amount: any) => {
+  const num = Number(amount) || 0;
+  return `${CURRENCY_SIGN}${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 interface InvoicePDFProps {
   order: any;
+  settings?: any;
+  allFillings?: any[];
 }
 
-const InvoicePDF: React.FC<InvoicePDFProps> = ({ order }) => {
+const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = [] }) => {
+
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
+      day: 'numeric', month: 'short', year: 'numeric'
     });
   };
 
-  const formatCurrency = (amount: number) => {
-    // Now using local Roboto fonts which support the Naira symbol
-    return `₦${amount.toLocaleString()}`;
-  };
+  const subTotal = (order.total_price || 0) + (order.discount || 0) - (order.tip || 0) - (order.vat_type === 'exclusive' ? (order.vat || 0) : 0);
+  const balance = Math.max(0, (order.total_price || 0) - (order.amount_paid || 0));
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        
-        {/* Header */}
+
+        {/* --- HEADER --- */}
         <View style={styles.header}>
           <View style={styles.brandColumn}>
             <Image src="/logo.png" style={styles.logo} />
-            <View style={styles.brandText}>
-              <Text style={styles.companyName}>BAKES & MORE</Text>
-              <Text style={styles.companySub}>Tel: +234 901 567 0411</Text>
-              <Text style={styles.companySub}>bakesandmore.com.ng</Text>
+            <View>
+              <Text style={styles.brandName}>BAKES & MORE</Text>
+              <Text style={styles.brandSub}>By Hafsaa</Text>
+              <View style={styles.companyDetails}>
+                <Text style={styles.companyText}>{settings?.company_phone}</Text>
+                <Text style={styles.companyText}>{settings?.company_address}</Text>
+              </View>
             </View>
           </View>
-          
-          <View style={styles.invoiceMetaBox}>
+
+          <View style={styles.invoiceMetaBlock}>
             <Text style={styles.invoiceTitle}>INVOICE</Text>
-            <View style={styles.invoiceMetaRow}>
-              <Text style={styles.metaLabel}>Invoice #: </Text>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Invoice #:</Text>
               <Text style={styles.metaValue}>#{order.id.slice(0, 8).toUpperCase()}</Text>
             </View>
-            <View style={styles.invoiceMetaRow}>
-              <Text style={styles.metaLabel}>Order Date: </Text>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Date:</Text>
               <Text style={styles.metaValue}>{formatDate(order.created_at)}</Text>
             </View>
-            <View style={styles.invoiceMetaRow}>
-              <Text style={styles.metaLabel}>Delivery: </Text>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Due Date:</Text>
               <Text style={styles.metaValue}>{formatDate(order.delivery_date)}</Text>
             </View>
           </View>
         </View>
 
-        {/* Info Boxes */}
-        <View style={styles.infoSection}>
-          <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>Bill To</Text>
-            <Text style={styles.infoTextBold}>{order.customer_name}</Text>
-            {order.customer_phone && <Text style={styles.infoText}>{order.customer_phone}</Text>}
-            {order.customer_email && <Text style={styles.infoText}>{order.customer_email}</Text>}
+        {/* --- CLIENT INFO --- */}
+        <View style={styles.infoGrid}>
+          <View style={styles.infoCol}>
+            <Text style={styles.colLabel}>Bill To</Text>
+            <Text style={styles.colText}>{order.customer_name}</Text>
+            <Text style={styles.colSub}>{order.customer_phone}</Text>
+            {order.customer_email && <Text style={styles.colSub}>{order.customer_email}</Text>}
           </View>
-          
-          {(order.customer_notes || order.notes) && (
-            <View style={styles.infoBox}>
-              <Text style={styles.infoTitle}>Notes</Text>
-              <Text style={styles.infoText}>
-                {order.customer_notes || order.notes}
+          <View style={styles.infoCol}>
+            <Text style={styles.colLabel}>Notes</Text>
+            <Text style={styles.colSub}>{order.notes || 'No specific instructions.'}</Text>
+          </View>
+          <View style={[styles.infoCol, { alignItems: 'flex-end', justifyContent: 'center' }]}>
+            <View style={{ backgroundColor: balance > 0 ? '#FEF2F2' : '#F0FDF4', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: balance > 0 ? '#FECACA' : '#BBF7D0' }}>
+              <Text style={{ fontSize: 10, fontWeight: 'bold', color: balance > 0 ? '#B91C1C' : '#15803D' }}>
+                {balance > 0 ? 'UNPAID' : 'PAID'}
               </Text>
             </View>
-          )}
-        </View>
-
-        {/* Items Table */}
-        <View style={styles.tableSection}>
-          <Text style={styles.tableTitle}>Order Items</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.headerText, styles.colNum]}>#</Text>
-              <Text style={[styles.headerText, styles.colDesc]}>Item Description</Text>
-              <Text style={[styles.headerText, styles.colQty]}>Qty</Text>
-              <Text style={[styles.headerText, styles.colPrice]}>Unit Price</Text>
-              <Text style={[styles.headerText, styles.colTotal]}>Amount</Text>
-            </View>
-
-            {order.order_items?.map((item: any, index: number) => (
-              <View key={index} style={index % 2 === 1 ? [styles.tableRow, styles.tableRowAlt] : styles.tableRow}>
-                <Text style={[styles.cellText, styles.colNum]}>{index + 1}</Text>
-                <View style={styles.colDesc}>
-                  <Text style={styles.itemName}>
-                    {item.recipes?.name || item.fillings?.name || 'Custom Item'}
-                  </Text>
-                  <Text style={styles.itemDetails}>
-                    {item.size_inches && `${item.size_inches}" diameter`}
-                    {item.layers && ` • ${item.layers} layers`}
-                    {item.custom_extras?.length > 0 && ` • ${item.custom_extras.length} extra(s)`}
-                  </Text>
-                </View>
-                <Text style={[styles.cellText, styles.colQty]}>{item.quantity}</Text>
-                <Text style={[styles.cellText, styles.colPrice]}>{formatCurrency(item.item_price)}</Text>
-                <Text style={[styles.cellText, styles.colTotal, { fontWeight: 'bold' }]}>{formatCurrency(item.item_price * item.quantity)}</Text>
-              </View>
-            ))}
           </View>
         </View>
 
-        {/* Summary Section */}
-        <View style={styles.summarySection}>
-          {/* Payment Details Box */}
-          {order.account_details && (
-            <View style={styles.paymentBox}>
-              <Text style={styles.paymentTitle}>Payment Details</Text>
-              <Text style={styles.paymentText}>{order.account_details}</Text>
-            </View>
-          )}
+        {/* --- ITEMS TABLE --- */}
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.th, styles.colDesc]}>Description</Text>
+            <Text style={[styles.th, styles.colQty]}>Qty</Text>
+            <Text style={[styles.th, styles.colPrice]}>Unit Price</Text>
+            <Text style={[styles.th, styles.colTotal]}>Amount</Text>
+          </View>
 
-          {/* Totals */}
+          {order.order_items?.map((item: any, i: number) => {
+            const isDessert = !!item.dessert_id;
+            const name = isDessert ? item.desserts?.name || 'Dessert' : item.recipes?.name || 'Custom Cake';
+            const desc = isDessert
+              ? item.desserts?.description
+              : `${item.size_inches}" Cake (${item.layers} Layers) - ${item.recipes?.flavor || 'Standard'}`;
+
+            // --- MATH LOGIC REBUILT ---
+            // 1. Quantity
+            const qty = item.quantity || 1;
+
+            // 2. Extras (Toppings) - Stored in custom_extras
+            let extrasTotal = 0;
+            let extrasList: any[] = [];
+            if (item.custom_extras?.addons && Array.isArray(item.custom_extras.addons)) {
+              extrasList = item.custom_extras.addons;
+              extrasTotal = extrasList.reduce((acc: number, ex: any) => acc + (Number(ex.price) || 0), 0);
+            }
+
+            // 3. Item Price from DB (Includes Fillings, Excludes Extras)
+            const dbItemPrice = Number(item.item_price);
+
+            // 4. Calculate Fillings
+            let fillingTotal = 0;
+            let fillingBreakdown: { name: string, price: number }[] = [];
+
+            if (!isDessert && item.fillings && Array.isArray(item.fillings)) {
+              item.fillings.forEach((fid: string) => {
+                // Robust lookup: convert to string/trim to avoid mismatches
+                const found = allFillings.find((f: any) => String(f.id).trim() === String(fid).trim());
+                if (found) {
+                  const price = Number(found.price) || 0;
+                  fillingTotal += price;
+                  fillingBreakdown.push({ name: found.name, price: price });
+                }
+              });
+            }
+
+            // 5. Derived Base Price (DB Price - Fillings)
+            const baseUnitPrice = Math.max(0, dbItemPrice - fillingTotal);
+
+            // 6. Line Total (DB Price * Qty) + (Extras * Qty?) 
+            // NOTE: In NewOrderPage, Extras are added to Grand Total separately. 
+            // We assume 'extrasTotal' applies to this line item.
+            // The table shows 'Amount', which usually means (Unit Price + Extras) * Qty
+            // But let's assume 'extrasTotal' is flat fee for the cake group.
+
+            const lineTotal = (dbItemPrice * qty) + extrasTotal;
+
+            return (
+              <View key={i} style={styles.tableRow}>
+                {/* Description Column */}
+                <View style={styles.colDesc}>
+                  <Text style={styles.itemName}>{name}</Text>
+                  <Text style={styles.itemMeta}>{desc}</Text>
+
+                  {/* BREAKDOWN BOX */}
+                  <View style={styles.breakdownContainer}>
+                    {/* Base Price */}
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownLabel}>Base Price</Text>
+                      <Text style={styles.breakdownPrice}>{formatMoney(baseUnitPrice)}</Text>
+                    </View>
+
+                    {/* Fillings */}
+                    {fillingBreakdown.length > 0 && (
+                      <View>
+                        <Text style={styles.sectionHeader}>Fillings</Text>
+                        {fillingBreakdown.map((f, idx) => (
+                          <View key={`fill-${idx}`} style={styles.breakdownRow}>
+                            <Text style={styles.breakdownLabel}>+ {f.name}</Text>
+                            <Text style={styles.breakdownPrice}>{formatMoney(f.price)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Extras */}
+                    {extrasList.length > 0 && (
+                      <View>
+                        <Text style={styles.sectionHeader}>Extras & Toppings</Text>
+                        {extrasList.map((ex, idx) => (
+                          <View key={`ex-${idx}`} style={styles.breakdownRow}>
+                            <Text style={styles.breakdownLabel}>+ {ex.name}</Text>
+                            <Text style={styles.breakdownPrice}>{formatMoney(ex.price)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* Qty */}
+                <Text style={styles.colQty}>{qty}</Text>
+
+                {/* Unit Price (Shows the Combined Cake Price) */}
+                <Text style={styles.colPrice}>{formatMoney(dbItemPrice)}</Text>
+
+                {/* Line Total */}
+                <Text style={styles.colTotal}>{formatMoney(lineTotal)}</Text>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* --- FOOTER & TOTALS --- */}
+        <View style={styles.footerSection}>
+          <View style={styles.paymentBox}>
+            <Text style={styles.colLabel}>Payment Details</Text>
+            <Text style={{ fontSize: 9, color: TEXT_DARK, lineHeight: 1.5, fontFamily: 'Roboto' }}>
+              {order.account_details || "Please contact us for payment instructions."}
+            </Text>
+          </View>
+
           <View style={styles.totalsBox}>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>{formatCurrency(order.total_price)}</Text>
+              <Text style={styles.totalValue}>{formatMoney(subTotal)}</Text>
             </View>
-            {(order.amount_paid || 0) > 0 && (
+
+            {order.discount > 0 && (
               <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Discount</Text>
+                <Text style={[styles.totalValue, { color: '#16A34A' }]}>- {formatMoney(order.discount)}</Text>
+              </View>
+            )}
+
+            {order.vat > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>VAT (7.5%)</Text>
+                <Text style={styles.totalValue}>{formatMoney(order.vat)}</Text>
+              </View>
+            )}
+
+            {order.tip > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Tip</Text>
+                <Text style={styles.totalValue}>+ {formatMoney(order.tip)}</Text>
+              </View>
+            )}
+
+            <View style={styles.grandTotal}>
+              <Text style={styles.grandTotalLabel}>Total Due</Text>
+              <Text style={styles.grandTotalValue}>{formatMoney(order.total_price)}</Text>
+            </View>
+
+            {order.amount_paid > 0 && (
+              <View style={[styles.totalRow, { marginTop: 6 }]}>
                 <Text style={styles.totalLabel}>Amount Paid</Text>
-                <Text style={[styles.totalValue, { color: '#16A34A' }]}>-{formatCurrency(order.amount_paid || 0)}</Text>
+                <Text style={[styles.totalValue, { color: '#16A34A' }]}>- {formatMoney(order.amount_paid)}</Text>
               </View>
             )}
-            {Math.max(0, order.total_price - (order.amount_paid || 0)) > 0 ? (
-              <View style={styles.grandTotal}>
-                <Text style={styles.grandTotalLabel}>OUTSTANDING BALANCE</Text>
-                <Text style={styles.grandTotalValue}>
-                  {formatCurrency(Math.max(0, order.total_price - (order.amount_paid || 0)))}
-                </Text>
-              </View>
-            ) : (order.amount_paid || 0) >= order.total_price ? (
-              <View style={[styles.grandTotal, { backgroundColor: '#16A34A' }]}>
-                <Text style={styles.grandTotalLabel}>PAID IN FULL</Text>
-                <Text style={styles.grandTotalValue}>{formatCurrency(0)}</Text>
-              </View>
-            ) : (
-              <View style={styles.grandTotal}>
-                <Text style={styles.grandTotalLabel}>TOTAL DUE</Text>
-                <Text style={styles.grandTotalValue}>{formatCurrency(order.total_price)}</Text>
-              </View>
-            )}
+
+            <View style={{ marginTop: 8, padding: 8, backgroundColor: balance > 0 ? '#FEF2F2' : '#F0FDF4', borderRadius: 4, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 9, fontWeight: 'bold', color: balance > 0 ? '#B91C1C' : '#15803D' }}>
+                {balance > 0 ? 'BALANCE DUE' : 'PAID IN FULL'}
+              </Text>
+              <Text style={{ fontSize: 11, fontWeight: 'bold', color: balance > 0 ? '#B91C1C' : '#15803D' }}>
+                {formatMoney(balance)}
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* Footer */}
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>Thank you for choosing us! We appreciate your business.</Text>
-          <Text style={styles.footerBrand}>BAKES & MORE</Text>
+        <View style={styles.pageFooter} fixed>
+          <Text style={styles.footerText}>Thank you for choosing Bakes & More! We appreciate your business.</Text>
         </View>
 
       </Page>

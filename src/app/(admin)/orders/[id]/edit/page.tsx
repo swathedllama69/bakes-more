@@ -81,39 +81,48 @@ export default function EditOrderPage() {
 
         setAmountPaid(order.amount_paid || 0);
         setDiscountValue(order.discount || 0);
-        setDiscountType('fixed'); // Default to fixed for now as we store value
+        setDiscountType('fixed');
         setVatType(order.vat_type || 'none');
-        // We don't store vatRate, so assume default or calculate? 
-        // For now, keep default 7.5. If vat > 0, we could reverse calc but let's keep simple.
 
         // Items
         const loadedItems = order.order_items.map((item: any) => ({
-            id: item.id, // Keep ID for updates
+            id: item.id,
             recipe_id: item.recipe_id,
             filling_id: item.filling_id || "",
+            // Handle fills array vs single ID for compatibility
+            fillings: item.fillings || (item.filling_id ? [item.filling_id] : []),
             size: item.size_inches,
             layers: item.layers,
             qty: item.quantity,
             price: item.item_price,
-            cost: 0 // We'll recalculate cost
+            cost: 0
         }));
         setItems(loadedItems);
 
-        // Extras (Attached to first item usually)
+        // --- FIX: Extras Loading Logic ---
         if (order.order_items.length > 0 && order.order_items[0].custom_extras) {
-            setExtras(order.order_items[0].custom_extras);
+            const rawExtras = order.order_items[0].custom_extras;
+            // Check if it's the new structure { addons: [] } or old structure []
+            if (rawExtras.addons && Array.isArray(rawExtras.addons)) {
+                setExtras(rawExtras.addons);
+            } else if (Array.isArray(rawExtras)) {
+                setExtras(rawExtras);
+            } else {
+                setExtras([]);
+            }
         }
 
         // Recalculate costs for loaded items
         loadedItems.forEach((item: any, idx: number) => {
-            calculateItemCost(idx, item.recipe_id, item.filling_id, item.size, item.layers, true);
+            // Note: Pass fillings array if available, or filling_id
+            calculateItemCost(idx, item.recipe_id, item.fillings, item.size, item.layers, true);
         });
 
         setLoading(false);
     };
 
-    // --- LOGIC: Calculate Estimated Cost for an Item ---
-    const calculateItemCost = async (index: number, recipeId: string, fillingId: string, size: number, layers: number, skipPriceUpdate = false) => {
+    // --- LOGIC: Calculate Estimated Cost ---
+    const calculateItemCost = async (index: number, recipeId: string, fillingIds: string | string[], size: number, layers: number, skipPriceUpdate = false) => {
         if (!recipeId) return 0;
 
         // 1. Fetch Recipe Ingredients Cost
@@ -130,19 +139,20 @@ export default function EditOrderPage() {
             }, 0);
         }
 
-        // 2. Fetch Filling Ingredients Cost (if selected)
+        // 2. Fetch Filling Ingredients Cost
         let fillingBaseCost = 0;
-        if (fillingId) {
-            const { data: fillingData } = await supabase
-                .from("filling_ingredients")
-                .select(`amount_grams_ml, ingredients(purchase_price, purchase_quantity)`)
-                .eq("filling_id", fillingId);
+        // Normalize fillingIds to array
+        const fIds = Array.isArray(fillingIds) ? fillingIds : (fillingIds ? [fillingIds] : []);
 
-            if (fillingData) {
-                fillingBaseCost = fillingData.reduce((acc: number, curr: any) => {
-                    const pricePerUnit = curr.ingredients.purchase_price / curr.ingredients.purchase_quantity;
-                    return acc + (curr.amount_grams_ml * pricePerUnit);
-                }, 0);
+        if (fIds.length > 0) {
+            // Fetch all fillings in the list
+            const { data: fillingsData } = await supabase
+                .from("fillings")
+                .select("cost") // Use the saved 'cost' field from fillings table directly
+                .in("id", fIds);
+
+            if (fillingsData) {
+                fillingBaseCost = fillingsData.reduce((sum, f) => sum + (Number(f.cost) || 0), 0);
             }
         }
 
@@ -152,32 +162,29 @@ export default function EditOrderPage() {
         // Cake Cost: Base * Scale * Layers
         const cakeCost = baseCost * scale * layers;
 
-        // Filling Cost: Base * Scale * (Layers - 1)
-        const fillingLayers = Math.max(0, layers - 1);
-        const fillingCost = fillingBaseCost * scale * fillingLayers;
+        // Filling Cost: Base * Scale * (Layers - 1) OR just Scale if it's per cake
+        // Sticking to New Order logic: Filling Cost * Scale
+        const fillingCostTotal = fillingBaseCost * scale;
 
-        const totalCost = cakeCost + fillingCost;
+        const totalCost = cakeCost + fillingCostTotal;
 
         // 4. Suggest Price
         let suggestedPrice = 0;
         const recipe = recipes.find(r => r.id === recipeId);
 
         if (recipe && recipe.selling_price > 0) {
-            // If recipe has a set price, scale it by size/layers
             suggestedPrice = recipe.selling_price * scale * layers;
         } else {
-            // Fallback: Cost * 3
             suggestedPrice = Math.ceil((totalCost * 3) / 100) * 100;
         }
 
         setItems(prev => {
             const newItems = [...prev];
-            if (!newItems[index]) return prev; // Safety check
+            if (!newItems[index]) return prev;
 
             newItems[index] = {
                 ...newItems[index],
                 cost: totalCost,
-                // Only update price if NOT skipping (loading mode)
                 price: skipPriceUpdate ? newItems[index].price : suggestedPrice
             };
             return newItems;
@@ -185,38 +192,26 @@ export default function EditOrderPage() {
     };
 
     const addItem = () => {
-        setItems([...items, { id: 'new_' + Date.now(), recipe_id: "", filling_id: "", size: 6, layers: 1, qty: 1, price: 0, cost: 0 }]);
+        setItems([...items, { id: 'new_' + Date.now(), recipe_id: "", fillings: [], size: 8, layers: 1, qty: 1, price: 0, cost: 0 }]);
     };
 
-    const removeItem = async (index: number) => {
-        const itemToRemove = items[index];
-        if (itemToRemove.id && !itemToRemove.id.toString().startsWith('new_')) {
-            // It's an existing item, we should probably mark for deletion or delete directly?
-            // For simplicity, we'll delete from DB on Save, or just delete now?
-            // Let's just remove from state, and handle diff on save.
-            // Actually, simpler to just delete order_items for this order and recreate them on save?
-            // That loses history/stats if we track them. 
-            // Let's just remove from UI and let the user "Save" to commit.
-        }
-        const newItems = items.filter((_, i) => i !== index);
-        setItems(newItems);
+    const removeItem = (index: number) => {
+        setItems(items.filter((_, i) => i !== index));
     };
 
     const updateItem = (index: number, field: string, value: any) => {
         const newItems = [...items];
         const item = newItems[index];
 
+        const updatedItem = { ...item, [field]: value };
+
+        // Update state immediately
+        newItems[index] = updatedItem;
+        setItems(newItems);
+
         // If critical fields change, recalculate cost
-        if (['recipe_id', 'filling_id', 'size', 'layers'].includes(field)) {
-            const updatedItem = { ...item, [field]: value };
-            // Update state immediately
-            newItems[index] = updatedItem;
-            setItems(newItems);
-            // Then calc cost
-            calculateItemCost(index, updatedItem.recipe_id, updatedItem.filling_id, updatedItem.size, updatedItem.layers);
-        } else {
-            newItems[index] = { ...item, [field]: value };
-            setItems(newItems);
+        if (['recipe_id', 'fillings', 'size', 'layers'].includes(field)) {
+            calculateItemCost(index, updatedItem.recipe_id, updatedItem.fillings, updatedItem.size, updatedItem.layers);
         }
     };
 
@@ -291,34 +286,27 @@ export default function EditOrderPage() {
                     tip: tip,
                     vat: vatAmount,
                     vat_type: vatType,
-                    // Don't change status
                 })
                 .eq("id", id);
 
             if (orderError) throw orderError;
 
             // 2. Update Items
-            // Strategy: Delete all existing items for this order and re-insert.
-            // This is destructive but safest for ensuring consistency without complex diffing.
-            // WARNING: This changes item IDs. If other tables referenced order_items, this would be bad.
-            // But currently nothing references order_items.
-
             await supabase.from("order_items").delete().eq("order_id", id);
 
-            const orderItems = items.map(item => ({
+            const orderItems = items.map((item, idx) => ({
                 order_id: id,
                 recipe_id: item.recipe_id,
-                filling_id: item.filling_id || null,
+                // Ensure fillings is stored as array
+                fillings: Array.isArray(item.fillings) ? item.fillings : (item.fillings ? [item.fillings] : []),
                 size_inches: item.size,
                 layers: item.layers,
                 quantity: item.qty,
                 item_price: item.price,
-                custom_extras: extras
+                item_cost: item.cost, // Save cost!
+                // Save custom extras in the new format { addons: [] }
+                custom_extras: (idx === 0 && extras.length > 0) ? { addons: extras } : null
             }));
-
-            if (orderItems.length > 0) {
-                orderItems[0].custom_extras = extras;
-            }
 
             const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
             if (itemsError) throw itemsError;
@@ -358,7 +346,6 @@ export default function EditOrderPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Reuse the same form layout as New Order */}
                 {/* LEFT COLUMN: Customer & Details */}
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9]">
@@ -458,15 +445,33 @@ export default function EditOrderPage() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Filling</label>
-                                            <select
-                                                value={item.filling_id}
-                                                onChange={e => updateItem(idx, 'filling_id', e.target.value)}
-                                                className="w-full p-2 bg-white rounded-lg border border-[#E8ECE9] text-sm font-bold outline-none focus:border-[#B03050]"
-                                            >
-                                                <option value="">None</option>
-                                                {fillings.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                                            </select>
+                                            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Fillings</label>
+                                            <div className="max-h-24 overflow-y-auto border border-[#E8ECE9] rounded-lg p-2 bg-white">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {fillings.map(f => {
+                                                        const checked = item.fillings?.includes(f.id);
+                                                        return (
+                                                            <label key={f.id} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-xs transition-colors ${checked ? 'bg-green-50 text-green-700 font-bold' : 'hover:bg-slate-50 text-slate-600'}`}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={checked}
+                                                                    className="rounded border-slate-300 text-[#B03050] focus:ring-[#B03050]"
+                                                                    onChange={e => {
+                                                                        let newFillings = Array.isArray(item.fillings) ? [...item.fillings] : [];
+                                                                        if (e.target.checked) {
+                                                                            newFillings.push(f.id);
+                                                                        } else {
+                                                                            newFillings = newFillings.filter((fid: string) => fid !== f.id);
+                                                                        }
+                                                                        updateItem(idx, 'fillings', newFillings);
+                                                                    }}
+                                                                />
+                                                                <span className="truncate">{f.name}</span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Plus, Trash2, Save, ChefHat, Search, ArrowRight, AlertCircle, FileText, List, X, Image as ImageIcon, Upload } from 'lucide-react';
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
@@ -51,11 +51,10 @@ export default function RecipeCreator() {
     // Editor State
     const [editName, setEditName] = useState("");
     const [editCategory, setEditCategory] = useState("Cake");
-    // Stepper state for Cake creation
-    const [cakeStep, setCakeStep] = useState(1);
-    // Use 'prices' for layer prices (jsonb)
+
+    // Cake Specific State
     const [editLayerPrices, setEditLayerPrices] = useState<{ [key: number]: number }>({ 1: 0, 2: 0, 3: 0, 4: 0 });
-    const [editDuration, setEditDuration] = useState(45); // For recipes
+    const [editDuration, setEditDuration] = useState(45);
     const [editInstructions, setEditInstructions] = useState("");
     const [editYieldAmount, setEditYieldAmount] = useState(1);
     const [editYieldUnit, setEditYieldUnit] = useState("Unit");
@@ -66,9 +65,11 @@ export default function RecipeCreator() {
     const [editFlavor, setEditFlavor] = useState('Vanilla');
     const [editLuxury, setEditLuxury] = useState(false);
     const [editLuxuryFlavor, setEditLuxuryFlavor] = useState('Oreo');
+
+    // Common/Other State
     const [editSellingPrice, setEditSellingPrice] = useState(0);
     const [editIngredients, setEditIngredients] = useState<any[]>([]);
-    const [editImageUrl, setEditImageUrl] = useState(""); // For extras
+    const [editImageUrl, setEditImageUrl] = useState("");
     const [uploading, setUploading] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
@@ -83,6 +84,64 @@ export default function RecipeCreator() {
     const availableFlavors = commonFlavors.filter(flavor =>
         items.some(i => i.name.toLowerCase().includes(flavor.toLowerCase()))
     );
+
+    // --- LOGIC: Filter & Group ---
+    const filteredItems = useMemo(() => {
+        return items.filter(i => {
+            const matchesSearch = i.name.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesFlavor = filterFlavor === 'All' || i.name.toLowerCase().includes(filterFlavor.toLowerCase());
+            return matchesSearch && matchesFlavor;
+        });
+    }, [items, searchTerm, filterFlavor]);
+
+    const { groupedItems, sortedGroupKeys, groupLabel } = useMemo(() => {
+        if (activeTab !== 'recipes' || !groupMode) {
+            return { groupedItems: {}, sortedGroupKeys: [], groupLabel: '' };
+        }
+
+        let keyFn: (item: any) => string;
+        let label = '';
+
+        if (groupMode === 'size') {
+            keyFn = (i) => (i.size ? `${i.size}"` : 'Unknown');
+            label = 'Size';
+        } else if (groupMode === 'flavor') {
+            keyFn = (i) => i.flavor || 'Unknown';
+            label = 'Flavor';
+        } else {
+            keyFn = (i) => i.category || 'Uncategorized';
+            label = 'Category';
+        }
+
+        const map: { [key: string]: any[] } = {};
+        filteredItems.forEach(i => {
+            const key = keyFn(i);
+            if (!map[key]) map[key] = [];
+            map[key].push(i);
+        });
+
+        let keys = Object.keys(map);
+        if (groupMode === 'size') {
+            keys = keys.sort((a, b) => {
+                const numA = parseInt(a);
+                const numB = parseInt(b);
+                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                return a.localeCompare(b);
+            });
+        } else {
+            keys = keys.sort((a, b) => a.localeCompare(b));
+        }
+
+        return { groupedItems: map, sortedGroupKeys: keys, groupLabel: label };
+    }, [activeTab, groupMode, filteredItems]);
+
+    useEffect(() => {
+        if (activeTab === 'recipes' && groupMode) {
+            const collapsed: { [key: string]: boolean } = {};
+            sortedGroupKeys.forEach(k => { collapsed[k] = false; });
+            setGroupCollapse(collapsed);
+        }
+    }, [activeTab, groupMode, filteredItems.length, sortedGroupKeys.length]);
 
     useEffect(() => {
         if (notification) {
@@ -111,7 +170,6 @@ export default function RecipeCreator() {
     const fetchItems = async () => {
         setLoading(true);
         if (activeTab === 'extras') {
-            // Fetch ingredients that are considered "Extras"
             const { data } = await supabase
                 .from('ingredients')
                 .select('*')
@@ -119,11 +177,9 @@ export default function RecipeCreator() {
                 .order('name');
             if (data) setItems(data || []);
         } else if (activeTab === 'desserts') {
-            // Only recipes with category Dessert
             const { data } = await supabase
-                .from('recipes')
+                .from('desserts')
                 .select('*')
-                .eq('category', 'Dessert')
                 .order('name');
             if (data) setItems(data || []);
         } else {
@@ -145,11 +201,21 @@ export default function RecipeCreator() {
         } else if (activeTab === 'desserts') {
             setEditDuration(item.baking_duration_minutes || 45);
             setEditCategory("Dessert");
-            setEditInstructions(item.instructions || "");
+            setEditInstructions(item.description || "");
             setEditYieldAmount(item.yield_amount || 1);
             setEditYieldUnit(item.yield_unit || "Unit");
             setEditBaseSize(item.base_size_inches || null);
-            setEditSellingPrice(item.selling_price || 0);
+            setEditSellingPrice(item.selling_price || item.price || 0);
+            // Always parse ingredients JSON for desserts
+            let parsedIngredients = [];
+            try {
+                parsedIngredients = item.ingredients ? (typeof item.ingredients === 'string' ? JSON.parse(item.ingredients) : item.ingredients) : [];
+            } catch (e) {
+                parsedIngredients = [];
+            }
+            setEditIngredients(parsedIngredients);
+            setEditorTab('ingredients');
+            return;
         } else if (activeTab === 'recipes') {
             setEditDuration(item.baking_duration_minutes || 45);
             setEditCategory(item.category || "Cake");
@@ -164,18 +230,18 @@ export default function RecipeCreator() {
             setEditFlavor(item.flavor || 'Vanilla');
             setEditLuxury(item.luxury || false);
             setEditLuxuryFlavor(item.luxury_flavor || 'Oreo');
-            // Load prices (layer prices) if they exist, otherwise default
             const defaultPrices = { 1: item.selling_price || 0, 2: 0, 3: 0, 4: 0 };
             setEditLayerPrices(item.prices || defaultPrices);
         } else {
+            // Fillings
             setEditSellingPrice(item.price || 0);
         }
 
         setEditorTab('ingredients');
 
-        if (activeTab !== 'extras') {
-            const table = (activeTab === 'recipes' || activeTab === 'desserts') ? 'recipe_ingredients' : 'filling_ingredients';
-            const idField = (activeTab === 'recipes' || activeTab === 'desserts') ? 'recipe_id' : 'filling_id';
+        if (activeTab !== 'extras' && activeTab !== 'desserts') {
+            const table = activeTab === 'recipes' ? 'recipe_ingredients' : 'filling_ingredients';
+            const idField = activeTab === 'recipes' ? 'recipe_id' : 'filling_id';
 
             const { data } = await supabase
                 .from(table)
@@ -197,8 +263,17 @@ export default function RecipeCreator() {
     const handleCreateNew = () => {
         setSelectedItem({ id: 'new' });
         setEditName("");
+
+        // Default values based on tab
+        if (activeTab === 'extras') {
+            setEditCategory("Topper");
+        } else if (activeTab === 'fillings') {
+            setEditCategory("Filling");
+        } else {
+            setEditCategory("Cake");
+        }
+
         setEditDuration(45);
-        setEditCategory(activeTab === 'extras' ? "Topper" : "Cake");
         setEditInstructions("");
         setEditYieldAmount(1);
         setEditYieldUnit("Unit");
@@ -246,13 +321,10 @@ export default function RecipeCreator() {
     };
 
     const totalCost = editIngredients.reduce((sum, i) => sum + i.cost, 0);
-    // For cake layers: only multiply cost for non-Topper/Decoration/Packaging ingredients
-    const scalableCategories = ["Topper", "Decoration", "Packaging"];
-    function getLayerCost(layer: string) {
+
+    function getLayerCost(layer: string | number) {
         return editIngredients.reduce((sum, i) => {
-            // If layer is a string, try to convert to number
             const layerNum = typeof layer === 'number' ? layer : parseInt(layer, 10);
-            // Always use layerNum for arithmetic
             const ingredient = ingredients.find(ing => ing.id === i.ingredient_id);
             const cat = ingredient?.category || i.category;
             if (cat === "Topper" || cat === "Decoration" || cat === "Packaging") {
@@ -265,7 +337,6 @@ export default function RecipeCreator() {
     const profit = editSellingPrice - totalCost;
     const margin = editSellingPrice > 0 ? (profit / editSellingPrice) * 100 : 0;
 
-    // Derive categories from ingredients, with Topper, Decoration, Packaging last
     const allCats = Array.from(new Set(ingredients.map(i => i.category)));
     const endCats = ["Topper", "Decoration", "Packaging"];
     const categories = [
@@ -277,39 +348,24 @@ export default function RecipeCreator() {
     const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         try {
             setUploading(true);
-
             if (!event.target.files || event.target.files.length === 0) {
-                // User cancelled selection
                 setUploading(false);
                 return;
             }
-
             const file = event.target.files[0];
-            if (!file) {
-                throw new Error("No file selected");
-            }
-
+            if (!file) throw new Error("No file selected");
             const fileExt = file.name.split('.').pop();
             const fileName = `${Math.random()}.${fileExt}`;
             const filePath = `${fileName}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from('images')
-                .upload(filePath, file);
-
-            if (uploadError) {
-                throw uploadError;
-            }
-
+            const { error: uploadError } = await supabase.storage.from('images').upload(filePath, file);
+            if (uploadError) throw uploadError;
             const { data } = supabase.storage.from('images').getPublicUrl(filePath);
-
             if (data) {
                 setEditImageUrl(data.publicUrl);
                 setNotification({ message: "Image uploaded successfully!", type: "success" });
             }
         } catch (error: any) {
             setNotification({ message: 'Error uploading image: ' + (error.message || "Unknown error"), type: "error" });
-            console.error(error);
         } finally {
             setUploading(false);
         }
@@ -317,25 +373,20 @@ export default function RecipeCreator() {
 
     const handleSave = async () => {
         if (!editName) return;
-
         let itemId = selectedItem.id;
 
         if (activeTab === 'extras') {
-            // Saving to ingredients table
             const itemData: any = {
                 name: editName,
                 category: editCategory,
-                purchase_price: editSellingPrice, // Assuming selling price is stored here for extras for now
+                purchase_price: editSellingPrice,
                 image_url: editImageUrl
             };
-
             if (itemId === 'new') {
-                // Defaults for new ingredient
                 itemData.unit = 'pcs';
                 itemData.current_stock = 0;
                 itemData.min_stock_level = 10;
                 itemData.purchase_quantity = 1;
-
                 const { data, error } = await supabase.from('ingredients').insert(itemData).select().single();
                 if (error) return setNotification({ message: error.message, type: "error" });
                 itemId = data.id;
@@ -344,29 +395,36 @@ export default function RecipeCreator() {
                 if (error) return setNotification({ message: error.message, type: "error" });
             }
         } else {
-            const table = activeTab === 'recipes' ? 'recipes' : 'fillings';
-
-            // 1. Upsert Item
+            let table = 'fillings';
             const itemData: any = { name: editName };
+
             if (activeTab === 'recipes') {
+                table = 'recipes';
                 itemData.baking_duration_minutes = editDuration;
                 itemData.category = editCategory;
                 itemData.instructions = editInstructions;
                 itemData.yield_amount = editYieldAmount;
                 itemData.yield_unit = editYieldUnit;
                 itemData.base_size_inches = editBaseSize;
-                itemData.base_cost = totalCost; // Save calculated cost
+                itemData.base_cost = totalCost;
                 itemData.selling_price = editSellingPrice;
-                // New fields for new schema
                 itemData.frosting = editFrosting;
                 itemData.cake_type = editShape;
                 itemData.size = String(editSize);
                 itemData.flavor = editFlavor;
                 itemData.luxury = editLuxury;
-                itemData.prices = editLayerPrices; // Save as prices (jsonb)
+                itemData.prices = editLayerPrices;
+            } else if (activeTab === 'desserts') {
+                table = 'desserts';
+                itemData.selling_price = editSellingPrice;
+                itemData.description = editInstructions;
+                itemData.cost = totalCost;
+                itemData.ingredients = editIngredients && Array.isArray(editIngredients) ? JSON.stringify(editIngredients) : '[]';
             } else {
                 // Fillings
                 itemData.price = editSellingPrice;
+                // --- CRITICAL FIX: Save filling cost to DB ---
+                itemData.cost = totalCost;
             }
 
             if (itemId === 'new') {
@@ -377,20 +435,18 @@ export default function RecipeCreator() {
                 const { error } = await supabase.from(table).update(itemData).eq('id', itemId);
                 if (error) return setNotification({ message: error.message, type: "error" });
             }
-
-            // 2. Update Ingredients (Delete all & Re-insert)
-            const joinTable = activeTab === 'recipes' ? 'recipe_ingredients' : 'filling_ingredients';
-            const idField = activeTab === 'recipes' ? 'recipe_id' : 'filling_id';
-
-            await supabase.from(joinTable).delete().eq(idField, itemId);
-
-            if (editIngredients.length > 0) {
-                const rows = editIngredients.map(i => ({
-                    [idField]: itemId,
-                    ingredient_id: i.ingredient_id,
-                    amount_grams_ml: i.amount
-                }));
-                await supabase.from(joinTable).insert(rows);
+            if (activeTab === 'recipes' || activeTab === 'fillings') {
+                const joinTable = activeTab === 'recipes' ? 'recipe_ingredients' : 'filling_ingredients';
+                const idField = activeTab === 'recipes' ? 'recipe_id' : 'filling_id';
+                await supabase.from(joinTable).delete().eq(idField, itemId);
+                if (editIngredients.length > 0) {
+                    const rows = editIngredients.map(i => ({
+                        [idField]: itemId,
+                        ingredient_id: i.ingredient_id,
+                        amount_grams_ml: i.amount
+                    }));
+                    await supabase.from(joinTable).insert(rows);
+                }
             }
         }
 
@@ -407,19 +463,25 @@ export default function RecipeCreator() {
             type: "danger",
             confirmText: "Delete",
             onConfirm: async () => {
-                const table = activeTab === 'extras' ? 'ingredients' : (activeTab === 'recipes' ? 'recipes' : 'fillings');
-                await supabase.from(table).delete().eq('id', selectedItem.id);
-                setSelectedItem(null);
-                fetchItems();
+                let table = '';
+                if (activeTab === 'extras') table = 'ingredients';
+                else if (activeTab === 'recipes') table = 'recipes';
+                else if (activeTab === 'fillings') table = 'fillings';
+                else if (activeTab === 'desserts') table = 'desserts';
+                const { error } = await supabase.from(table).delete().eq('id', selectedItem.id);
+                if (error) {
+                    setNotification({ message: `Delete failed: ${error.message}`, type: 'error' });
+                } else {
+                    setSelectedItem(null);
+                    fetchItems();
+                }
             }
         });
     };
 
     const handleCreateIngredient = async () => {
         if (!newIngredient.name) return;
-
         const { data, error } = await supabase.from("ingredients").insert(newIngredient).select().single();
-
         if (error) {
             setNotification({ message: "Error adding ingredient: " + error.message, type: "error" });
         } else {
@@ -434,12 +496,9 @@ export default function RecipeCreator() {
                 purchase_price: 0,
                 purchase_quantity: 1000
             });
-            // Auto-add to current recipe
             handleAddIngredient(data.id);
         }
     };
-
-    // const totalCost = editIngredients.reduce((sum, i) => sum + i.cost, 0); // Moved up
 
     return (
         <div className="min-h-screen p-8 font-sans text-slate-800 bg-[#FDFBF7]">
@@ -455,28 +514,16 @@ export default function RecipeCreator() {
                 </div>
 
                 <div className="flex bg-white p-1 rounded-xl border border-[#E8ECE9] shadow-sm">
-                    <button
-                        onClick={() => setActiveTab('recipes')}
-                        className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'recipes' ? 'bg-[#B03050] text-white shadow-md' : 'text-slate-500 hover:bg-[#FAFAFA]'}`}
-                    >
+                    <button onClick={() => setActiveTab('recipes')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'recipes' ? 'bg-[#B03050] text-white shadow-md' : 'text-slate-500 hover:bg-[#FAFAFA]'}`}>
                         Cake Recipes
                     </button>
-                    <button
-                        onClick={() => setActiveTab('fillings')}
-                        className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'fillings' ? 'bg-[#B03050] text-white shadow-md' : 'text-slate-500 hover:bg-[#FAFAFA]'}`}
-                    >
+                    <button onClick={() => setActiveTab('fillings')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'fillings' ? 'bg-[#B03050] text-white shadow-md' : 'text-slate-500 hover:bg-[#FAFAFA]'}`}>
                         Fillings
                     </button>
-                    <button
-                        onClick={() => setActiveTab('desserts')}
-                        className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'desserts' ? 'bg-[#B03050] text-white shadow-md' : 'text-slate-500 hover:bg-[#FAFAFA]'}`}
-                    >
+                    <button onClick={() => setActiveTab('desserts')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'desserts' ? 'bg-[#B03050] text-white shadow-md' : 'text-slate-500 hover:bg-[#FAFAFA]'}`}>
                         Desserts
                     </button>
-                    <button
-                        onClick={() => setActiveTab('extras')}
-                        className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'extras' ? 'bg-[#B03050] text-white shadow-md' : 'text-slate-500 hover:bg-[#FAFAFA]'}`}
-                    >
+                    <button onClick={() => setActiveTab('extras')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'extras' ? 'bg-[#B03050] text-white shadow-md' : 'text-slate-500 hover:bg-[#FAFAFA]'}`}>
                         Extras & Toppers
                     </button>
                 </div>
@@ -500,19 +547,11 @@ export default function RecipeCreator() {
 
                         {activeTab === 'recipes' && (
                             <div className="flex gap-2">
-                                <select
-                                    value={filterFlavor}
-                                    onChange={(e) => setFilterFlavor(e.target.value)}
-                                    className="flex-1 p-2 bg-white rounded-lg border border-[#E8ECE9] text-xs font-bold text-slate-600 outline-none focus:border-[#B03050]"
-                                >
+                                <select value={filterFlavor} onChange={(e) => setFilterFlavor(e.target.value)} className="flex-1 p-2 bg-white rounded-lg border border-[#E8ECE9] text-xs font-bold text-slate-600 outline-none focus:border-[#B03050]">
                                     <option value="All">All Flavors</option>
                                     {availableFlavors.map(f => <option key={f} value={f}>{f}</option>)}
                                 </select>
-                                <select
-                                    value={groupMode}
-                                    onChange={e => setGroupMode(e.target.value as 'size' | 'flavor' | 'category')}
-                                    className="p-2 bg-white rounded-lg border border-[#E8ECE9] text-xs font-bold text-slate-600 outline-none focus:border-[#B03050]"
-                                >
+                                <select value={groupMode} onChange={e => setGroupMode(e.target.value as 'size' | 'flavor' | 'category')} className="p-2 bg-white rounded-lg border border-[#E8ECE9] text-xs font-bold text-slate-600 outline-none focus:border-[#B03050]">
                                     <option value="size">Group by Size</option>
                                     <option value="flavor">Group by Flavor</option>
                                     <option value="category">Group by Category</option>
@@ -525,118 +564,50 @@ export default function RecipeCreator() {
                         onClick={handleCreateNew}
                         className="w-full py-3 bg-[#B03050] text-white rounded-xl font-bold hover:bg-[#902040] transition-all flex items-center justify-center gap-2 shadow-lg shadow-pink-200 text-sm"
                     >
-                        <Plus className="w-4 h-4" /> Create New {activeTab === 'recipes' ? 'Recipe' : (activeTab === 'fillings' ? 'Filling' : 'Extra')}
+                        <Plus className="w-4 h-4" /> Create New {activeTab === 'recipes' ? 'Recipe' : (activeTab === 'fillings' ? 'Filling' : 'Item')}
                     </button>
 
                     <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-                        {(() => {
-                            const filtered = items.filter(i => {
-                                const matchesSearch = i.name.toLowerCase().includes(searchTerm.toLowerCase());
-                                const matchesFlavor = filterFlavor === 'All' || i.name.toLowerCase().includes(filterFlavor.toLowerCase());
-                                return matchesSearch && matchesFlavor;
-                            });
+                        {activeTab === 'recipes' && groupMode ? (
+                            // Render Grouped Items
+                            sortedGroupKeys.map(group => {
+                                const catItems = groupedItems[group];
+                                if (!catItems || catItems.length === 0) return null;
+                                const isOpen = groupCollapse[group] === true;
+                                const allChecked = catItems.every(i => selectedIds.includes(i.id));
+                                const someChecked = catItems.some(i => selectedIds.includes(i.id));
 
-                            if (activeTab === 'recipes' && groupMode) {
-                                // Determine group key and label
-                                let groupKeyFn: (item: any) => string;
-                                let groupLabel = '';
-                                if (groupMode === 'size') {
-                                    groupKeyFn = (i) => (i.size ? `${i.size}"` : 'Unknown');
-                                    groupLabel = 'Size';
-                                } else if (groupMode === 'flavor') {
-                                    groupKeyFn = (i) => i.flavor || 'Unknown';
-                                    groupLabel = 'Flavor';
-                                } else {
-                                    groupKeyFn = (i) => i.category || 'Uncategorized';
-                                    groupLabel = 'Category';
-                                }
-                                // Group items
-                                const groupMap: { [key: string]: any[] } = {};
-                                filtered.forEach(i => {
-                                    const key = groupKeyFn(i);
-                                    if (!groupMap[key]) groupMap[key] = [];
-                                    groupMap[key].push(i);
-                                });
-                                let groupKeys = Object.keys(groupMap);
-                                // Sort group keys: for size, sort numerically; else alphabetically
-                                if (groupMode === 'size') {
-                                    groupKeys = groupKeys.sort((a, b) => {
-                                        const numA = parseInt(a);
-                                        const numB = parseInt(b);
-                                        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                                        return a.localeCompare(b);
-                                    });
-                                } else {
-                                    groupKeys = groupKeys.sort((a, b) => a.localeCompare(b));
-                                }
-                                // By default, all groups collapsed
-                                React.useEffect(() => {
-                                    const collapsed: { [key: string]: boolean } = {};
-                                    groupKeys.forEach(k => { collapsed[k] = false; });
-                                    setGroupCollapse(collapsed);
-                                }, [groupMode, filtered.length]);
-
-                                return groupKeys.map(group => {
-                                    const catItems = groupMap[group];
-                                    if (catItems.length === 0) return null;
-                                    const isOpen = groupCollapse[group] === true;
-                                    const allChecked = catItems.every(i => selectedIds.includes(i.id));
-                                    const someChecked = catItems.some(i => selectedIds.includes(i.id));
-                                    return (
-                                        <div key={group} className="mb-4">
-                                            <div className="flex items-center mb-2 ml-1">
-                                                <button onClick={() => setGroupCollapse(prev => ({ ...prev, [group]: !isOpen }))} className="mr-2 text-xs font-bold text-slate-400 focus:outline-none">
-                                                    {isOpen ? '▼' : '►'}
-                                                </button>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={allChecked}
-                                                    ref={el => { if (el) el.indeterminate = !allChecked && someChecked; }}
-                                                    onChange={e => {
-                                                        if (e.target.checked) {
-                                                            setSelectedIds(prev => [...prev, ...catItems.filter(i => !prev.includes(i.id)).map(i => i.id)]);
-                                                        } else {
-                                                            setSelectedIds(prev => prev.filter(id => !catItems.some(i => i.id === id)));
-                                                        }
-                                                    }}
-                                                    className="mr-2"
-                                                />
-                                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">{groupLabel}: {group}</h3>
-                                            </div>
-                                            {isOpen && (
-                                                <div className="space-y-2">
-                                                    {catItems.map((item, idx) => (
-                                                        <div
-                                                            key={item.id}
-                                                            className={`p-3 rounded-lg border cursor-pointer transition-all group flex items-center ${selectedItem?.id === item.id ? 'bg-[#FDFBF7] border-[#B03050] shadow-sm' : 'bg-white border-[#E8ECE9] hover:border-[#B03050]'}`}
-                                                        >
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedIds.includes(item.id)}
-                                                                onChange={e => {
-                                                                    if (e.target.checked) {
-                                                                        setSelectedIds(prev => [...prev, item.id]);
-                                                                    } else {
-                                                                        setSelectedIds(prev => prev.filter(id => id !== item.id));
-                                                                    }
-                                                                }}
-                                                                className="mr-2"
-                                                            />
-                                                            <div onClick={() => handleSelectItem(item)} className="flex-1 flex items-center gap-3">
-                                                                <span className="text-xs font-bold text-slate-300 w-4">{idx + 1}</span>
-                                                                <span className={`text-sm font-bold ${selectedItem?.id === item.id ? 'text-[#B03050]' : 'text-slate-700'}`}>{item.name}</span>
-                                                            </div>
-                                                            <ArrowRight className={`w-3 h-3 ${selectedItem?.id === item.id ? 'text-[#B03050]' : 'text-slate-200 opacity-0 group-hover:opacity-100'}`} />
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                                return (
+                                    <div key={group} className="mb-4">
+                                        <div className="flex items-center mb-2 ml-1">
+                                            <button onClick={() => setGroupCollapse(prev => ({ ...prev, [group]: !isOpen }))} className="mr-2 text-xs font-bold text-slate-400 focus:outline-none">
+                                                {isOpen ? '▼' : '►'}
+                                            </button>
+                                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">{groupLabel}: {group}</h3>
                                         </div>
-                                    );
-                                });
-                            }
-
-                            return filtered.map((item, idx) => (
+                                        {isOpen && (
+                                            <div className="space-y-2">
+                                                {catItems.map((item, idx) => (
+                                                    <div
+                                                        key={item.id}
+                                                        onClick={() => handleSelectItem(item)}
+                                                        className={`p-3 rounded-lg border cursor-pointer transition-all group flex items-center ${selectedItem?.id === item.id ? 'bg-[#FDFBF7] border-[#B03050] shadow-sm' : 'bg-white border-[#E8ECE9] hover:border-[#B03050]'}`}
+                                                    >
+                                                        <div className="flex-1 flex items-center gap-3">
+                                                            <span className="text-xs font-bold text-slate-300 w-4">{idx + 1}</span>
+                                                            <span className={`text-sm font-bold ${selectedItem?.id === item.id ? 'text-[#B03050]' : 'text-slate-700'}`}>{item.name}</span>
+                                                        </div>
+                                                        <ArrowRight className={`w-3 h-3 ${selectedItem?.id === item.id ? 'text-[#B03050]' : 'text-slate-200 opacity-0 group-hover:opacity-100'}`} />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            // Render Flat List
+                            filteredItems.map((item, idx) => (
                                 <div
                                     key={item.id}
                                     onClick={() => handleSelectItem(item)}
@@ -650,8 +621,8 @@ export default function RecipeCreator() {
                                         <ArrowRight className={`w-3 h-3 ${selectedItem?.id === item.id ? 'text-[#B03050]' : 'text-slate-200 opacity-0 group-hover:opacity-100'}`} />
                                     </div>
                                 </div>
-                            ));
-                        })()}
+                            ))
+                        )}
                     </div>
                 </div>
 
@@ -661,394 +632,486 @@ export default function RecipeCreator() {
                         <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-[#E8ECE9]">
                             <div className="flex justify-between items-start mb-6">
                                 <h2 className="text-2xl font-serif text-slate-800">
-                                    {selectedItem.id === 'new' ? `New ${activeTab === 'recipes' ? 'Recipe' : (activeTab === 'fillings' ? 'Filling' : 'Extra')}` : 'Edit Details'}
+                                    {selectedItem.id === 'new' ? `New ${activeTab === 'recipes' ? 'Recipe' : (activeTab === 'fillings' ? 'Filling' : 'Item')}` : 'Edit Details'}
                                 </h2>
                                 {selectedItem.id !== 'new' && (
                                     <button onClick={handleDelete} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors">
                                         <Trash2 className="w-5 h-5" />
                                     </button>
                                 )}
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Name</label>
-                                    <input
-                                        value={editName}
-                                        onChange={(e) => setEditName(e.target.value)}
-                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
-                                        placeholder="e.g. Vanilla Sponge"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Category</label>
-                                    <select
-                                        value={editCategory}
-                                        onChange={e => setEditCategory(e.target.value)}
-                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
-                                    >
-                                        <option value="Cake">Cake</option>
-                                        <option value="Dessert">Dessert</option>
-                                        <option value="Cupcake">Cupcakes</option>
-                                        <option value="Loaf">Loaf / Bread</option>
-                                        <option value="Cookie">Cookies</option>
-                                        <option value="Other">Other</option>
-                                    </select>
-                                </div>
                             </div>
 
-                            <div className="space-y-4 md:space-y-2 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-                                {/* Step 1: Frosting (as cards, balanced row) */}
-                                <div className="col-span-1 md:col-span-2">
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Frosting</label>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-1 gap-y-1">
-                                        {['Whipped Cream', 'Swiss Meringue Buttercream', 'Fondant', 'Ganache'].map(frosting => (
-                                            <button
-                                                key={frosting}
-                                                className={`px-1 py-0.5 rounded-lg border font-bold text-xs ${editFrosting === frosting ? 'bg-[#B03050] text-white border-[#B03050]' : 'bg-[#FAFAFA] text-slate-800 border-[#E8ECE9]'} transition-all`}
-                                                style={{ minWidth: 0, margin: 0, fontSize: '0.7rem', height: '1.2rem', lineHeight: '1.1' }}
-                                                onClick={() => setEditFrosting(frosting)}
-                                            >
-                                                {frosting}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                {/* Step 3: Flavor */}
-                                <div className="flex flex-col md:flex-row md:items-end gap-2 md:gap-4">
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Flavor</label>
-                                        <select value={editFlavor} onChange={e => {
-                                            setEditFlavor(e.target.value);
-                                            setEditLuxury(e.target.value === 'Luxury');
-                                        }} className="w-full p-2 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors">
-                                            <option>Vanilla</option>
-                                            <option>Red Velvet</option>
-                                            <option>Chocolate</option>
-                                            <option>Strawberry (Colored)</option>
-                                            <option>Luxury</option>
-                                        </select>
-                                        {editLuxury && (
-                                            <div className="mt-2">
-                                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Luxury Flavor</label>
-                                                <select value={editLuxuryFlavor} onChange={e => setEditLuxuryFlavor(e.target.value)} className="w-full p-2 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors">
-                                                    <option>Oreo</option>
-                                                    <option>Lotus</option>
-                                                    <option>Coconut</option>
-                                                    <option>Lemon</option>
-                                                    <option>Banana</option>
-                                                    <option>Carrot</option>
-                                                    <option>Strawberry</option>
-                                                    <option>Marble</option>
-                                                    <option>Chocolate Oreo</option>
-                                                    <option>Red Velvet Oreo</option>
-                                                    <option>Fruit Cake (Non-Alcoholic)</option>
-                                                </select>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex-1">
-                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Shape</label>
-                                        <select value={editShape} onChange={e => setEditShape(e.target.value)} className="w-full p-2 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors">
-                                            <option>Round</option>
-                                            <option>Square</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                {/* Step 4 removed - Merged into Pricing Section below */}
-                            </div>
-
-                            {editCategory === 'Cupcake' && (
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Batch Yield (Count)</label>
-                                    <input
-                                        type="number"
-                                        value={editYieldAmount}
-                                        onChange={(e) => {
-                                            setEditYieldAmount(Number(e.target.value));
-                                            setEditYieldUnit("Cupcakes");
-                                        }}
-                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
-                                    />
-                                </div>
-                            )}
-
-                            {editCategory === 'Loaf' && (
-                                <>
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Yield Amount</label>
+                            <div className="space-y-6">
+                                {/* COMMON FIELD: NAME */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className={activeTab !== 'recipes' ? "md:col-span-2" : ""}>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Name</label>
                                         <input
-                                            type="number"
-                                            value={editYieldAmount}
-                                            onChange={(e) => setEditYieldAmount(Number(e.target.value))}
+                                            value={editName}
+                                            onChange={(e) => setEditName(e.target.value)}
                                             className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                                            placeholder="e.g. Vanilla Sponge"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Unit Type</label>
-                                        <select
-                                            value={editYieldUnit}
-                                            onChange={(e) => setEditYieldUnit(e.target.value)}
-                                            className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
-                                        >
-                                            <option value="Loaf">Loaf</option>
-                                            <option value="Mini Loaf">Mini Loaf</option>
-                                            <option value="Cup">Cup</option>
-                                        </select>
-                                    </div>
-                                </>
-                            )}
 
-                            <div>
-                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Baking Time (Mins)</label>
-                                <input
-                                    type="number"
-                                    value={editDuration}
-                                    onChange={(e) => setEditDuration(Number(e.target.value))}
-                                    className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
-                                />
-                            </div>
-
-                            {/* --- NEW PRICING SECTION --- */}
-                            {activeTab === 'recipes' ? (
-                                <div className="bg-[#FDFBF7] p-6 rounded-2xl border border-[#E8ECE9] space-y-6 mt-4">
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="font-serif text-lg text-[#B03050]">Pricing & Profitability</h3>
-                                        <div className="flex items-center gap-2">
-                                            <label className="text-xs font-bold uppercase text-slate-500">Cake Size:</label>
-                                            <select value={editSize} onChange={e => setEditSize(Number(e.target.value))} className="p-2 bg-white rounded-lg border border-[#E8ECE9] font-bold text-slate-700 outline-none focus:border-[#B03050]">
-                                                {[4, 5, 6, 7, 8, 9, 10, 12, 13, 14].map(sz => (<option key={sz} value={sz}>{sz}"</option>))}
+                                    {/* RECIPE CATEGORY SELECTOR */}
+                                    {activeTab === 'recipes' && (
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Category</label>
+                                            <select
+                                                value={editCategory}
+                                                onChange={e => setEditCategory(e.target.value)}
+                                                className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                                            >
+                                                <option value="Cake">Cake</option>
+                                                <option value="Dessert">Dessert</option>
+                                                <option value="Cupcake">Cupcakes</option>
+                                                <option value="Loaf">Loaf / Bread</option>
+                                                <option value="Cookie">Cookies</option>
+                                                <option value="Other">Other</option>
                                             </select>
                                         </div>
-                                    </div>
+                                    )}
 
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                        {/* 1 Layer */}
-                                        <div className="bg-white p-2 rounded border border-green-100 shadow-sm flex flex-col items-center text-xs min-w-0">
-                                            <div className="flex justify-between items-center w-full mb-1">
-                                                <label className="font-bold uppercase text-slate-400">1L</label>
-                                                <span className="font-bold text-slate-300 bg-slate-50 px-1 py-0.5 rounded">₦{Math.ceil(totalCost).toLocaleString()}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1 w-full mb-1">
-                                                <span className="text-slate-400">₦</span>
-                                                <input
-                                                    type="number"
-                                                    value={editSellingPrice || ''}
-                                                    onChange={(e) => {
-                                                        const val = Number(e.target.value);
-                                                        setEditSellingPrice(val);
-                                                        setEditLayerPrices(prev => ({ ...prev, 1: val }));
-                                                    }}
-                                                    className="w-full text-base font-bold text-slate-800 outline-none placeholder:text-slate-200 p-1"
-                                                    placeholder="0"
-                                                />
-                                            </div>
-                                            <div className="flex justify-between w-full border-t border-slate-50 pt-1">
-                                                <span className={profit >= 0 ? "text-green-600" : "text-red-500"}>₦{profit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                                                <span className={margin >= 30 ? "text-green-600" : "text-orange-500"}>{margin.toFixed(0)}%</span>
-                                            </div>
-                                        </div>
-                                        {/* 2, 3, 4 Layers */}
-                                        {[2, 3, 4].map(layerCount => {
-                                            const price = editLayerPrices[layerCount] || 0;
-                                            const estimatedCost = getLayerCost(layerCount);
-                                            const layerProfit = price - estimatedCost;
-                                            const layerMargin = price > 0 ? (layerProfit / price) * 100 : 0;
-                                            return (
-                                                <div key={layerCount} className="bg-white p-2 rounded border border-slate-100 shadow-sm flex flex-col items-center text-xs min-w-0">
-                                                    <div className="flex justify-between items-center w-full mb-1">
-                                                        <label className="font-bold uppercase text-slate-400">{layerCount}L</label>
-                                                        <span className="font-bold text-slate-300 bg-slate-50 px-1 py-0.5 rounded">₦{Math.ceil(estimatedCost).toLocaleString()}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1 w-full mb-1">
-                                                        <span className="text-slate-400">₦</span>
-                                                        <input
-                                                            type="number"
-                                                            value={price === 0 ? '' : price}
-                                                            onChange={(e) => setEditLayerPrices(prev => ({ ...prev, [layerCount]: Number(e.target.value) }))}
-                                                            className="w-full text-base font-bold text-slate-700 outline-none placeholder:text-slate-200 p-1"
-                                                            placeholder="0"
-                                                        />
-                                                    </div>
-                                                    <div className="flex justify-between w-full border-t border-slate-50 pt-1">
-                                                        <span className={layerProfit >= 0 ? "text-slate-600" : "text-red-400"}>₦{layerProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                                                        <span className={layerMargin >= 30 ? "text-slate-600" : "text-orange-400"}>{layerMargin.toFixed(0)}%</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            ) : (
-                                // Original simple pricing for Non-Recipes (Fillings/Extras)
-                                <div>
-                                    <label className="block text-xs font-bold uppercase text-green-600 mb-1">Selling Price (₦)</label>
-                                    <input
-                                        type="number"
-                                        value={editSellingPrice}
-                                        onChange={(e) => setEditSellingPrice(Number(e.target.value))}
-                                        className="w-full p-3 bg-green-50 text-green-700 rounded-xl font-black border border-green-100 outline-none focus:border-green-500 transition-colors"
-                                        placeholder="0.00"
-                                    />
-                                    <div className="flex gap-4 mt-2 text-xs font-bold">
-                                        <span className={profit >= 0 ? "text-green-600" : "text-red-500"}>
-                                            Profit: ₦{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </span>
-                                        <span className={margin >= 30 ? "text-green-600" : "text-orange-500"}>
-                                            Margin: {margin.toFixed(1)}%
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-
-                            {activeTab !== 'extras' && (
-                                <>
-                                    <div className="flex gap-6 border-b border-[#E8ECE9] mb-6 mt-6">
-                                        <button
-                                            onClick={() => setEditorTab('ingredients')}
-                                            className={`pb-3 text-sm font-bold transition-all border-b-2 ${editorTab === 'ingredients' ? 'border-[#B03050] text-[#B03050]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <List className="w-4 h-4" /> Ingredients
-                                            </div>
-                                        </button>
-                                        {activeTab === 'recipes' && (
-                                            <button
-                                                onClick={() => setEditorTab('instructions')}
-                                                className={`pb-3 text-sm font-bold transition-all border-b-2 ${editorTab === 'instructions' ? 'border-[#B03050] text-[#B03050]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                    {/* EXTRAS CATEGORY SELECTOR */}
+                                    {activeTab === 'extras' && (
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Category</label>
+                                            <select
+                                                value={editCategory}
+                                                onChange={(e) => setEditCategory(e.target.value)}
+                                                className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
                                             >
-                                                <div className="flex items-center gap-2">
-                                                    <FileText className="w-4 h-4" /> Instructions
-                                                </div>
-                                            </button>
-                                        )}
-                                    </div>
+                                                <option value="Topper">Topper</option>
+                                                <option value="Decoration">Decoration</option>
+                                                <option value="Balloon">Balloon</option>
+                                                <option value="Extra">Extra</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
 
-                                    {editorTab === 'ingredients' ? (
-                                        <div className="mb-8">
-                                            <div className="flex justify-between items-end mb-4">
-                                                <h3 className="font-bold text-slate-700">Ingredients List</h3>
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        className="px-3 py-2 rounded-lg bg-[#FDFBF7] border border-[#E8ECE9] text-xs font-bold text-[#B03050] hover:bg-pink-50"
-                                                        onClick={() => setIsAddIngredientModalOpen(true)}
-                                                    >
-                                                        + New Ingredient
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            {/* Grouped ingredient picker with checkboxes */}
-                                            <div className="mb-4 p-2 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9]">
-                                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Quick Add Ingredients</label>
-                                                <div className="max-h-48 overflow-y-auto grid grid-cols-1 md:grid-cols-4 gap-x-1 gap-y-1">
-                                                    {categories.map((cat, idx) => (
-                                                        <div key={cat} className={idx !== 0 ? 'pl-2 border-l border-slate-200' : ''}>
-                                                            <div className="font-bold text-xs text-slate-400 mb-1 mt-2">{cat}</div>
-                                                            {ingredients.filter(i => i.category === cat).map(i => {
-                                                                const checked = editIngredients.some(ei => ei.ingredient_id === i.id);
-                                                                return (
-                                                                    <label key={i.id} className="flex items-center gap-2 text-xs mb-1 cursor-pointer">
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={checked}
-                                                                            onChange={e => {
-                                                                                if (e.target.checked) {
-                                                                                    handleAddIngredient(i.id);
-                                                                                } else {
-                                                                                    const idx = editIngredients.findIndex(ei => ei.ingredient_id === i.id);
-                                                                                    if (idx !== -1) handleRemoveIngredient(idx);
-                                                                                }
-                                                                            }}
-                                                                        />
-                                                                        <span>{i.name}</span>
-                                                                    </label>
-                                                                );
-                                                            })}
-                                                        </div>
+                                {/* --- RECIPE SPECIFIC FIELDS (Hidden for Fillings/Extras) --- */}
+                                {activeTab === 'recipes' && (
+                                    <>
+                                        <div className="space-y-4 md:space-y-2 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                                            {/* Frosting */}
+                                            <div className="col-span-1 md:col-span-2">
+                                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Frosting</label>
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-x-1 gap-y-1">
+                                                    {['Whipped Cream', 'Swiss Meringue Buttercream', 'Fondant', 'Ganache'].map(frosting => (
+                                                        <button
+                                                            key={frosting}
+                                                            className={`px-1 py-0.5 rounded-lg border font-bold text-xs ${editFrosting === frosting ? 'bg-[#B03050] text-white border-[#B03050]' : 'bg-[#FAFAFA] text-slate-800 border-[#E8ECE9]'} transition-all`}
+                                                            style={{ minWidth: 0, margin: 0, fontSize: '0.7rem', height: '1.2rem', lineHeight: '1.1' }}
+                                                            onClick={() => setEditFrosting(frosting)}
+                                                        >
+                                                            {frosting}
+                                                        </button>
                                                     ))}
                                                 </div>
                                             </div>
-
-                                            <div className="bg-white border border-[#E8ECE9] rounded-xl overflow-hidden">
-                                                <table className="w-full text-sm text-left">
-                                                    <thead className="text-xs uppercase font-bold text-slate-500 bg-[#FAFAFA]">
-                                                        <tr>
-                                                            <th className="p-4">Ingredient</th>
-                                                            <th className="p-4 w-32">Amount</th>
-                                                            <th className="p-4 w-24 text-right">Cost</th>
-                                                            <th className="p-4 w-12"></th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-200">
-                                                        {editIngredients.map((ing, idx) => (
-                                                            <tr key={idx} className="bg-white">
-                                                                <td className="p-4 font-medium text-slate-700">{ing.name}</td>
-                                                                <td className="p-4">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <input
-                                                                            type="number"
-                                                                            value={ing.amount}
-                                                                            onChange={(e) => handleUpdateIngredientAmount(idx, Number(e.target.value))}
-                                                                            className="w-20 p-1 bg-[#FAFAFA] border border-[#E8ECE9] rounded text-center font-bold"
-                                                                        />
-                                                                        <span className="text-xs text-slate-400">{ing.unit}</span>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="p-4 text-right font-bold text-slate-600">
-                                                                    ₦{ing.cost.toFixed(2)}
-                                                                </td>
-                                                                <td className="p-4 text-center">
-                                                                    <button onClick={() => handleRemoveIngredient(idx)} className="text-slate-300 hover:text-red-500">
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                        {editIngredients.length === 0 && (
-                                                            <tr>
-                                                                <td colSpan={4} className="p-8 text-center text-slate-400 italic">
-                                                                    No ingredients added yet.
-                                                                </td>
-                                                            </tr>
-                                                        )}
-                                                    </tbody>
-                                                    <tfoot className="bg-slate-100">
-                                                        <tr>
-                                                            <td colSpan={2} className="p-4 text-right font-bold text-slate-500 uppercase text-xs">Total Base Cost</td>
-                                                            <td className="p-4 text-right font-black text-slate-800 text-lg">₦{totalCost.toFixed(2)}</td>
-                                                            <td></td>
-                                                        </tr>
-                                                    </tfoot>
-                                                </table>
+                                            {/* Flavor */}
+                                            <div className="flex flex-col md:flex-row md:items-end gap-2 md:gap-4">
+                                                <div className="flex-1">
+                                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Flavor</label>
+                                                    <select value={editFlavor} onChange={e => {
+                                                        setEditFlavor(e.target.value);
+                                                        setEditLuxury(e.target.value === 'Luxury');
+                                                    }} className="w-full p-2 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors">
+                                                        <option>Vanilla</option>
+                                                        <option>Red Velvet</option>
+                                                        <option>Chocolate</option>
+                                                        <option>Strawberry (Colored)</option>
+                                                        <option>Luxury</option>
+                                                    </select>
+                                                    {editLuxury && (
+                                                        <div className="mt-2">
+                                                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Luxury Flavor</label>
+                                                            <select value={editLuxuryFlavor} onChange={e => setEditLuxuryFlavor(e.target.value)} className="w-full p-2 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors">
+                                                                <option>Oreo</option>
+                                                                <option>Lotus</option>
+                                                                <option>Coconut</option>
+                                                                <option>Lemon</option>
+                                                                <option>Banana</option>
+                                                                <option>Carrot</option>
+                                                                <option>Strawberry</option>
+                                                                <option>Marble</option>
+                                                                <option>Chocolate Oreo</option>
+                                                                <option>Red Velvet Oreo</option>
+                                                                <option>Fruit Cake (Non-Alcoholic)</option>
+                                                            </select>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Shape</label>
+                                                    <select value={editShape} onChange={e => setEditShape(e.target.value)} className="w-full p-2 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors">
+                                                        <option>Round</option>
+                                                        <option>Square</option>
+                                                    </select>
+                                                </div>
                                             </div>
                                         </div>
-                                    ) : (
-                                        <div className="mb-8">
-                                            <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Baking Instructions</label>
-                                            <textarea
-                                                value={editInstructions}
-                                                onChange={(e) => setEditInstructions(e.target.value)}
-                                                className="w-full h-64 p-4 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-medium text-slate-700 focus:border-[#B03050] transition-colors resize-none"
-                                                placeholder="1. Preheat oven to 180°C...&#10;2. Mix dry ingredients...&#10;3. Bake for 45 mins..."
+
+                                        {editCategory === 'Cupcake' && (
+                                            <div>
+                                                <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Batch Yield (Count)</label>
+                                                <input
+                                                    type="number"
+                                                    value={editYieldAmount}
+                                                    onChange={(e) => {
+                                                        setEditYieldAmount(Number(e.target.value));
+                                                        setEditYieldUnit("Cupcakes");
+                                                    }}
+                                                    className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {editCategory === 'Loaf' && (
+                                            <>
+                                                <div>
+                                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Yield Amount</label>
+                                                    <input
+                                                        type="number"
+                                                        value={editYieldAmount}
+                                                        onChange={(e) => setEditYieldAmount(Number(e.target.value))}
+                                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Unit Type</label>
+                                                    <select
+                                                        value={editYieldUnit}
+                                                        onChange={(e) => setEditYieldUnit(e.target.value)}
+                                                        className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
+                                                    >
+                                                        <option value="Loaf">Loaf</option>
+                                                        <option value="Mini Loaf">Mini Loaf</option>
+                                                        <option value="Cup">Cup</option>
+                                                    </select>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Baking Time (Mins)</label>
+                                            <input
+                                                type="number"
+                                                value={editDuration}
+                                                onChange={(e) => setEditDuration(Number(e.target.value))}
+                                                className="w-full p-3 bg-[#FAFAFA] rounded-xl font-bold text-slate-800 border border-[#E8ECE9] outline-none focus:border-[#B03050] transition-colors"
                                             />
                                         </div>
-                                    )}
-                                </>
-                            )}
+                                    </>
+                                )}
 
-                            <div className="flex justify-end gap-4">
-                                <button
-                                    onClick={() => setSelectedItem(null)}
-                                    className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-all"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleSave}
-                                    className="px-8 py-3 bg-[#B03050] text-white rounded-xl font-bold shadow-lg shadow-pink-200 hover:scale-105 transition-all flex items-center gap-2"
-                                >
-                                    <Save className="w-5 h-5" />
-                                    Save {activeTab === 'recipes' ? 'Recipe' : (activeTab === 'fillings' ? 'Filling' : 'Extra')}
-                                </button>
+                                {/* --- PRICING SECTION --- */}
+                                {activeTab === 'recipes' ? (
+                                    <div className="bg-[#FDFBF7] p-6 rounded-2xl border border-[#E8ECE9] space-y-6 mt-4">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="font-serif text-lg text-[#B03050]">Pricing & Profitability</h3>
+                                            <div className="flex items-center gap-2">
+                                                <label className="text-xs font-bold uppercase text-slate-500">Cake Size:</label>
+                                                <select value={editSize} onChange={e => setEditSize(Number(e.target.value))} className="p-2 bg-white rounded-lg border border-[#E8ECE9] font-bold text-slate-700 outline-none focus:border-[#B03050]">
+                                                    {[4, 5, 6, 7, 8, 9, 10, 12, 13, 14].map(sz => (<option key={sz} value={sz}>{sz}"</option>))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            {/* 1 Layer */}
+                                            <div className="bg-white p-2 rounded border border-green-100 shadow-sm flex flex-col items-center text-xs min-w-0">
+                                                <div className="flex justify-between items-center w-full mb-1">
+                                                    <label className="font-bold uppercase text-slate-400">1L</label>
+                                                    <span className="font-bold text-slate-300 bg-slate-50 px-1 py-0.5 rounded">₦{Math.ceil(totalCost).toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1 w-full mb-1">
+                                                    <span className="text-slate-400">₦</span>
+                                                    <input
+                                                        type="number"
+                                                        value={editSellingPrice || ''}
+                                                        onChange={(e) => {
+                                                            const val = Number(e.target.value);
+                                                            setEditSellingPrice(val);
+                                                            setEditLayerPrices(prev => ({ ...prev, 1: val }));
+                                                        }}
+                                                        className="w-full text-base font-bold text-slate-800 outline-none placeholder:text-slate-200 p-1"
+                                                        placeholder="0"
+                                                    />
+                                                </div>
+                                                <div className="flex justify-between w-full border-t border-slate-50 pt-1">
+                                                    <span className={profit >= 0 ? "text-green-600" : "text-red-500"}>₦{profit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                                    <span className={margin >= 30 ? "text-green-600" : "text-orange-500"}>{margin.toFixed(0)}%</span>
+                                                </div>
+                                            </div>
+                                            {/* 2, 3, 4 Layers */}
+                                            {[2, 3, 4].map(layerCount => {
+                                                const price = editLayerPrices[layerCount] || 0;
+                                                const estimatedCost = getLayerCost(layerCount);
+                                                const layerProfit = price - estimatedCost;
+                                                const layerMargin = price > 0 ? (layerProfit / price) * 100 : 0;
+                                                return (
+                                                    <div key={layerCount} className="bg-white p-2 rounded border border-slate-100 shadow-sm flex flex-col items-center text-xs min-w-0">
+                                                        <div className="flex justify-between items-center w-full mb-1">
+                                                            <label className="font-bold uppercase text-slate-400">{layerCount}L</label>
+                                                            <span className="font-bold text-slate-300 bg-slate-50 px-1 py-0.5 rounded">₦{Math.ceil(estimatedCost).toLocaleString()}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1 w-full mb-1">
+                                                            <span className="text-slate-400">₦</span>
+                                                            <input
+                                                                type="number"
+                                                                value={price === 0 ? '' : price}
+                                                                onChange={(e) => setEditLayerPrices(prev => ({ ...prev, [layerCount]: Number(e.target.value) }))}
+                                                                className="w-full text-base font-bold text-slate-700 outline-none placeholder:text-slate-200 p-1"
+                                                                placeholder="0"
+                                                            />
+                                                        </div>
+                                                        <div className="flex justify-between w-full border-t border-slate-50 pt-1">
+                                                            <span className={layerProfit >= 0 ? "text-slate-600" : "text-red-400"}>₦{layerProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                                                            <span className={layerMargin >= 30 ? "text-slate-600" : "text-orange-400"}>{layerMargin.toFixed(0)}%</span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    // Simple Pricing for Fillings and Extras
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-green-600 mb-1">Selling Price (₦)</label>
+                                        <input
+                                            type="number"
+                                            value={editSellingPrice}
+                                            onChange={(e) => setEditSellingPrice(Number(e.target.value))}
+                                            className="w-full p-3 bg-green-50 text-green-700 rounded-xl font-black border border-green-100 outline-none focus:border-green-500 transition-colors"
+                                            placeholder="0.00"
+                                        />
+
+                                        {/* Show profit margin only for Fillings (which have ingredients cost) */}
+                                        {activeTab === 'fillings' && (
+                                            <div className="flex gap-4 mt-2 text-xs font-bold">
+                                                <span className={profit >= 0 ? "text-green-600" : "text-red-500"}>
+                                                    Profit: ₦{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                                <span className={margin >= 30 ? "text-green-600" : "text-orange-500"}>
+                                                    Margin: {margin.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* --- IMAGE UPLOAD (EXTRAS ONLY) --- */}
+                                {activeTab === 'extras' && (
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Image</label>
+                                        <div className="flex gap-4 items-center">
+                                            <div className="flex-1">
+                                                <label
+                                                    htmlFor="image-upload"
+                                                    className={`flex items-center justify-center w-full p-4 border-2 border-dashed rounded-xl cursor-pointer transition-all ${uploading ? 'bg-slate-50 border-slate-300' : 'bg-[#FAFAFA] border-[#E8ECE9] hover:border-[#B03050] hover:bg-pink-50'}`}
+                                                >
+                                                    <div className="flex flex-col items-center gap-2 text-slate-500">
+                                                        {uploading ? (
+                                                            <span className="text-sm font-bold animate-pulse">Uploading...</span>
+                                                        ) : (
+                                                            <>
+                                                                <Upload className="w-6 h-6" />
+                                                                <span className="text-sm font-bold">Click to Upload Image</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    <input
+                                                        id="image-upload"
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={handleImageUpload}
+                                                        disabled={uploading}
+                                                        className="hidden"
+                                                    />
+                                                </label>
+                                            </div>
+                                            {editImageUrl && (
+                                                <div className="w-24 h-24 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative group">
+                                                    <img src={editImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                                                    <button
+                                                        onClick={() => setEditImageUrl("")}
+                                                        className="absolute top-1 right-1 bg-white/80 p-1 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <p className="text-xs text-slate-400 mt-2">Supported formats: JPG, PNG, WEBP.</p>
+                                    </div>
+                                )}
+
+                                {/* --- INGREDIENTS LIST (RECIPES & FILLINGS ONLY) --- */}
+                                {activeTab !== 'extras' && (
+                                    <>
+                                        <div className="flex gap-6 border-b border-[#E8ECE9] mb-6 mt-6">
+                                            <button
+                                                onClick={() => setEditorTab('ingredients')}
+                                                className={`pb-3 text-sm font-bold transition-all border-b-2 ${editorTab === 'ingredients' ? 'border-[#B03050] text-[#B03050]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <List className="w-4 h-4" /> Ingredients
+                                                </div>
+                                            </button>
+                                            {activeTab === 'recipes' && (
+                                                <button
+                                                    onClick={() => setEditorTab('instructions')}
+                                                    className={`pb-3 text-sm font-bold transition-all border-b-2 ${editorTab === 'instructions' ? 'border-[#B03050] text-[#B03050]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <FileText className="w-4 h-4" /> Instructions
+                                                    </div>
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {editorTab === 'ingredients' ? (
+                                            <div className="mb-8">
+                                                <div className="flex justify-between items-end mb-4">
+                                                    <h3 className="font-bold text-slate-700">Ingredients List</h3>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            className="px-3 py-2 rounded-lg bg-[#FDFBF7] border border-[#E8ECE9] text-xs font-bold text-[#B03050] hover:bg-pink-50"
+                                                            onClick={() => setIsAddIngredientModalOpen(true)}
+                                                        >
+                                                            + New Ingredient
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                {/* Grouped ingredient picker with checkboxes */}
+                                                <div className="mb-4 p-2 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9]">
+                                                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Quick Add Ingredients</label>
+                                                    <div className="max-h-48 overflow-y-auto grid grid-cols-1 md:grid-cols-4 gap-x-1 gap-y-1">
+                                                        {categories.map((cat, idx) => (
+                                                            <div key={cat} className={idx !== 0 ? 'pl-2 border-l border-slate-200' : ''}>
+                                                                <div className="font-bold text-xs text-slate-400 mb-1 mt-2">{cat}</div>
+                                                                {ingredients.filter(i => i.category === cat).map(i => {
+                                                                    const checked = editIngredients.some(ei => ei.ingredient_id === i.id);
+                                                                    return (
+                                                                        <label key={i.id} className="flex items-center gap-2 text-xs mb-1 cursor-pointer">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={checked}
+                                                                                onChange={e => {
+                                                                                    if (e.target.checked) {
+                                                                                        handleAddIngredient(i.id);
+                                                                                    } else {
+                                                                                        const idx = editIngredients.findIndex(ei => ei.ingredient_id === i.id);
+                                                                                        if (idx !== -1) handleRemoveIngredient(idx);
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                            <span>{i.name}</span>
+                                                                        </label>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-white border border-[#E8ECE9] rounded-xl overflow-hidden">
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead className="text-xs uppercase font-bold text-slate-500 bg-[#FAFAFA]">
+                                                            <tr>
+                                                                <th className="p-4">Ingredient</th>
+                                                                <th className="p-4 w-32">Amount</th>
+                                                                <th className="p-4 w-24 text-right">Cost</th>
+                                                                <th className="p-4 w-12"></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-200">
+                                                            {editIngredients.map((ing, idx) => (
+                                                                <tr key={idx} className="bg-white">
+                                                                    <td className="p-4 font-medium text-slate-700">{ing.name}</td>
+                                                                    <td className="p-4">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <input
+                                                                                type="number"
+                                                                                value={ing.amount}
+                                                                                onChange={(e) => handleUpdateIngredientAmount(idx, Number(e.target.value))}
+                                                                                className="w-20 p-1 bg-[#FAFAFA] border border-[#E8ECE9] rounded text-center font-bold"
+                                                                            />
+                                                                            <span className="text-xs text-slate-400">{ing.unit}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="p-4 text-right font-bold text-slate-600">
+                                                                        ₦{ing.cost.toFixed(2)}
+                                                                    </td>
+                                                                    <td className="p-4 text-center">
+                                                                        <button onClick={() => handleRemoveIngredient(idx)} className="text-slate-300 hover:text-red-500">
+                                                                            <Trash2 className="w-4 h-4" />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                            {editIngredients.length === 0 && (
+                                                                <tr>
+                                                                    <td colSpan={4} className="p-8 text-center text-slate-400 italic">
+                                                                        No ingredients added yet.
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                        <tfoot className="bg-slate-100">
+                                                            <tr>
+                                                                <td colSpan={2} className="p-4 text-right font-bold text-slate-500 uppercase text-xs">Total Base Cost</td>
+                                                                <td className="p-4 text-right font-black text-slate-800 text-lg">₦{totalCost.toFixed(2)}</td>
+                                                                <td></td>
+                                                            </tr>
+                                                        </tfoot>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="mb-8">
+                                                <label className="block text-xs font-bold uppercase text-slate-500 mb-2">Baking Instructions</label>
+                                                <textarea
+                                                    value={editInstructions}
+                                                    onChange={(e) => setEditInstructions(e.target.value)}
+                                                    className="w-full h-64 p-4 bg-[#FAFAFA] rounded-xl border border-[#E8ECE9] outline-none font-medium text-slate-700 focus:border-[#B03050] transition-colors resize-none"
+                                                    placeholder="1. Preheat oven to 180°C...&#10;2. Mix dry ingredients...&#10;3. Bake for 45 mins..."
+                                                />
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {selectedItem && (
+                                    <div className="mb-4">
+                                        <div className="flex gap-4 items-center">
+                                            <span className="font-bold text-slate-500">Cost: ₦{totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                            <span className={profit >= 0 ? "text-green-600 font-bold" : "text-red-500 font-bold"}>Profit: ₦{profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                            <span className={margin >= 30 ? "text-green-600 font-bold" : "text-orange-500 font-bold"}>Margin: {margin.toFixed(1)}%</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-end gap-4">
+                                    <button
+                                        onClick={() => setSelectedItem(null)}
+                                        className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSave}
+                                        className="px-8 py-3 bg-[#B03050] text-white rounded-xl font-bold shadow-lg shadow-pink-200 hover:scale-105 transition-all flex items-center gap-2"
+                                    >
+                                        <Save className="w-5 h-5" />
+                                        Save {activeTab === 'recipes' ? 'Recipe' : (activeTab === 'fillings' ? 'Filling' : 'Item')}
+                                    </button>
+                                </div>
+
                             </div>
-
                         </div>
                     ) : (
                         <div className="h-full border-4 border-dashed border-[#E8ECE9] rounded-[2.5rem] flex flex-col items-center justify-center text-slate-300 p-12 text-center">

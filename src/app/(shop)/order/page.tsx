@@ -479,40 +479,47 @@ export default function OrderPage() {
                                             )}
                                         </select>
                                     </div>
+                                </div>
+                            ))}
 
-                                    {/* Size & layers picker handled in Step 1 */}
-                                    <button
-                                        key={t.id}
-                                        onClick={() => toggleTopper(t.id)}
-                                        className={`p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden group ${selectedToppers.includes(t.id) ? 'border-[#B03050] bg-pink-50' : 'border-slate-200 hover:border-slate-300'}`}
-                                    >
-                                        {selectedToppers.includes(t.id) && (
-                                            <div className="absolute top-2 right-2 text-[#B03050] bg-white rounded-full p-1 shadow-sm z-10">
-                                                <Check className="w-3 h-3" />
-                                            </div>
-                                        )}
+                            <div>
+                                <h4 className="font-bold text-slate-700 mb-3">Add Toppers (Optional)</h4>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    {toppers.map((t) => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => toggleTopper(t.id)}
+                                            className={`p-4 rounded-xl border-2 text-left transition-all relative overflow-hidden group ${selectedToppers.includes(t.id) ? 'border-[#B03050] bg-pink-50' : 'border-slate-200 hover:border-slate-300'}`}
+                                        >
+                                            {selectedToppers.includes(t.id) && (
+                                                <div className="absolute top-2 right-2 text-[#B03050] bg-white rounded-full p-1 shadow-sm z-10">
+                                                    <Check className="w-3 h-3" />
+                                                </div>
+                                            )}
 
-                                        {t.image_url ? (
-                                            <div className="w-full h-32 mb-3 rounded-lg overflow-hidden bg-white border border-slate-100">
-                                                <img src={t.image_url} alt={t.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                            </div>
-                                        ) : (
-                                            <div className="w-full h-32 mb-3 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300">
-                                                <ShoppingBag className="w-8 h-8 opacity-20" />
-                                            </div>
-                                        )}
+                                            {t.image_url ? (
+                                                <div className="w-full h-32 mb-3 rounded-lg overflow-hidden bg-white border border-slate-100">
+                                                    <img src={t.image_url} alt={t.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                </div>
+                                            ) : (
+                                                <div className="w-full h-32 mb-3 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300">
+                                                    <ShoppingBag className="w-8 h-8 opacity-20" />
+                                                </div>
+                                            )}
 
-                                        <span className="font-bold block text-slate-800">{t.name}</span>
-                                        <span className="text-xs text-slate-500">+₦{(t.purchase_price || 500) * 2}</span>
-                                    </button>
-                                })}
+                                            <span className="font-bold block text-slate-800">{t.name}</span>
+                                            <span className="text-xs text-slate-500">+₦{(t.purchase_price || 500) * 2}</span>
+                                        </button>
+                                    ))}
+                                </div>
+
                                 {toppers.length === 0 && (
-                                    <p className="col-span-3 text-slate-400 italic">No toppers available in stock.</p>
+                                    <p className="text-slate-400 italic mt-4">No toppers available in stock.</p>
                                 )}
                             </div>
 
                             <div className="flex gap-4 mt-8">
-                                <button onClick={() => setStep(2)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all">
+                                <button onClick={() => setStep(1)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all">
                                     Back
                                 </button>
                                 <button onClick={() => setStep(4)} className="flex-[2] py-4 bg-[#B03050] text-white rounded-xl font-bold text-lg shadow-lg hover:bg-[#902040] transition-all flex items-center justify-center gap-2">
@@ -573,7 +580,7 @@ export default function OrderPage() {
                             </div>
 
                             <div className="flex gap-4 mt-8">
-                                <button onClick={() => setStep(3)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all">
+                                <button onClick={() => setStep(2)} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all">
                                     Back
                                 </button>
                                 <button onClick={() => {

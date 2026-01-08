@@ -4,18 +4,47 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Package, Clock, ShoppingBag, AlertTriangle, Flame, DollarSign, Trash2, Edit, Plus, Printer, Save, X, ChevronDown, FileText, ChefHat, Mail, CheckCircle, Calendar } from "lucide-react";
-import { calculateJobCost, ProductionSummary, ProductionItem } from "@/lib/calculations/production";
-import { getPackagingSize } from "@/lib/constants/bakery";
+import {
+    ArrowLeft, Package, Clock, ShoppingBag, AlertTriangle, Flame, DollarSign,
+    Trash2, Edit, Plus, Save, ChevronDown, FileText, Mail, CheckCircle,
+    Calendar, Sparkles, Receipt
+} from "lucide-react";
+// Import SIZE_MULTIPLIERS to ensure calculation matches New Order page
+import { SIZE_MULTIPLIERS, getPackagingSize } from "@/lib/constants/bakery";
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 import InvoicePDFButton from '@/components/pdf/InvoicePDFButton';
 import { OrderConfirmationTemplate, PaymentReceivedTemplate } from "@/lib/email-templates";
 
+// Define Types for Production Logic locally to ensure control
+export interface ProductionItem {
+    id?: string;
+    name: string;
+    type: 'Ingredient' | 'Packaging' | 'Overhead' | 'Adjustment' | 'Labor';
+    requiredAmount: number;
+    unit: string;
+    costToBake: number;
+    costToRestock?: number;
+    stock?: number;
+    shortfall?: number;
+}
+
+export interface ProductionSummary {
+    items: ProductionItem[];
+    totalCostToBake: number;
+    totalRestockCost: number;
+    totalProfit: number;
+}
+
 export default function OrderDetailsPage() {
     const { id } = useParams();
     const router = useRouter();
+
+    // Data State
     const [order, setOrder] = useState<any>(null);
+    const [allFillings, setAllFillings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Production State
     const [productionData, setProductionData] = useState<ProductionSummary | null>(null);
     const [baking, setBaking] = useState(false);
 
@@ -43,8 +72,14 @@ export default function OrderDetailsPage() {
         if (id) {
             fetchOrderDetails();
             fetchAccountDetails();
+            fetchFillings();
         }
     }, [id]);
+
+    const fetchFillings = async () => {
+        const { data } = await supabase.from('fillings').select('*');
+        if (data) setAllFillings(data);
+    };
 
     const fetchAccountDetails = async () => {
         const { data } = await supabase
@@ -56,7 +91,6 @@ export default function OrderDetailsPage() {
     }
 
     const fetchOrderDetails = async () => {
-        // 1. Get Order & Items
         const { data: orderData, error } = await supabase
             .from("orders")
             .select(`
@@ -64,75 +98,216 @@ export default function OrderDetailsPage() {
                 order_items (
                     *,
                     recipes (name, baking_duration_minutes, instructions),
-                    fillings (name)
+                    desserts (name, description, selling_price, cost) 
                 )
             `)
             .eq("id", id)
             .single();
 
         if (error) {
-            alert("Error fetching order");
+            console.error("Error fetching order:", error);
+            alert(`Error fetching order: ${error.message}`);
             return;
         }
 
         setOrder(orderData);
 
-        // 2. Check for Production Snapshot OR Calculate
+        // Check for Production Snapshot OR Calculate
         if (orderData.production_snapshot) {
             setProductionData(orderData.production_snapshot);
         } else if (orderData.order_items.length > 0) {
-            // ... Calculation Logic ...
-            const item = orderData.order_items[0];
-
-            // Fetch Recipe Ingredients
-            const { data: cakeData } = await supabase
-                .from("recipe_ingredients")
-                .select(`amount_grams_ml, ingredients(id, name, unit, current_stock, purchase_price, purchase_quantity)`)
-                .eq("recipe_id", item.recipe_id);
-
-            // Fetch Filling Ingredients
-            let fillingData: any[] = [];
-            if (item.filling_id) {
-                const { data } = await supabase
-                    .from("filling_ingredients")
-                    .select(`amount_grams_ml, ingredients(id, name, unit, current_stock, purchase_price, purchase_quantity)`)
-                    .eq("filling_id", item.filling_id);
-                fillingData = data || [];
-            }
-
-            // Fetch Packaging
-            const pkgSize = getPackagingSize(item.size_inches);
-            const { data: pkgData } = await supabase
-                .from("ingredients")
-                .select("*")
-                .or(`name.ilike.%box (${pkgSize} inch)%,name.ilike.%board (${pkgSize} inch)%`);
-
-            // Fetch Settings for Overhead Rates
-            const { data: settings } = await supabase.from("settings").select("gas_rate_per_minute, electricity_rate_per_minute").single();
-            const overheadRates = {
-                gas: settings?.gas_rate_per_minute || 50,
-                electricity: settings?.electricity_rate_per_minute || 30
-            };
-
-            if (cakeData && pkgData) {
-                const result = calculateJobCost(
-                    { ingredients: cakeData, baking_duration_minutes: item.recipes?.baking_duration_minutes || 45 },
-                    { ingredients: fillingData },
-                    pkgData || [],
-                    item.custom_extras || [], // Use the extras saved in the item
-                    { size: item.size_inches, layers: item.layers, qty: item.quantity, salePrice: item.item_price * item.quantity },
-                    overheadRates
-                );
-                setProductionData(result);
-            }
+            await calculateOrderProduction(orderData);
         }
 
         setLoading(false);
     };
 
+    // --- ROBUST CALCULATION LOGIC (Matches New Order Page) ---
+    const calculateOrderProduction = async (orderData: any) => {
+        let aggregatedItems: ProductionItem[] = [];
+        let totalCalculatedCost = 0;
+
+        // 1. Fetch Settings for Overhead Rates
+        const { data: settings } = await supabase.from("settings").select("gas_rate_per_minute, electricity_rate_per_minute").single();
+        const gasRate = settings?.gas_rate_per_minute || 50;
+        const elecRate = settings?.electricity_rate_per_minute || 30;
+
+        // Iterate through ALL items to build the materials list
+        for (const item of orderData.order_items) {
+
+            // --- SCENARIO A: CAKE ---
+            if (item.recipe_id) {
+                // A1. Fetch Recipe Ingredients
+                const { data: cakeData } = await supabase
+                    .from("recipe_ingredients")
+                    .select(`amount_grams_ml, ingredients(id, name, unit, current_stock, purchase_price, purchase_quantity)`)
+                    .eq("recipe_id", item.recipe_id);
+
+                // A2. Fetch Packaging
+                const pkgSize = getPackagingSize(item.size_inches);
+                const { data: pkgData } = await supabase
+                    .from("ingredients")
+                    .select("*")
+                    .or(`name.ilike.%box (${pkgSize} inch)%,name.ilike.%board (${pkgSize} inch)%`);
+
+                if (cakeData) {
+                    // --- CALCULATION CORE ---
+                    // 1. Multipliers
+                    const sizeMult = SIZE_MULTIPLIERS[item.size_inches] || 1;
+                    const layers = item.layers || 1;
+                    const qty = item.quantity || 1;
+
+                    // 2. Ingredients Cost & List
+                    cakeData.forEach((ri: any) => {
+                        if (!ri.ingredients) return;
+
+                        // Logic: Base * SizeMult * Layers * OrderQty
+                        const requiredAmount = (ri.amount_grams_ml * sizeMult * layers * qty);
+
+                        // Cost: (Required / PurchaseQty) * PurchasePrice
+                        const unitCost = ri.ingredients.purchase_price / ri.ingredients.purchase_quantity;
+                        const costToBake = requiredAmount * unitCost;
+
+                        totalCalculatedCost += costToBake;
+
+                        // Add to list
+                        aggregatedItems.push({
+                            id: ri.ingredients.id,
+                            name: ri.ingredients.name,
+                            type: 'Ingredient',
+                            requiredAmount: requiredAmount,
+                            unit: ri.ingredients.unit,
+                            costToBake: costToBake,
+                            stock: ri.ingredients.current_stock,
+                            shortfall: Math.max(0, requiredAmount - (ri.ingredients.current_stock || 0)),
+                            costToRestock: 0 // Simplification for display
+                        });
+                    });
+
+                    // 3. Fillings Cost
+                    if (item.fillings && Array.isArray(item.fillings)) {
+                        // We need to fetch filling costs if not already in allFillings
+                        // Assuming allFillings is populated or we fetch specific
+                        const { data: currentFillings } = await supabase.from('fillings').select('*').in('id', item.fillings);
+
+                        if (currentFillings) {
+                            const totalFillingCostBase = currentFillings.reduce((sum, f) => sum + (Number(f.cost) || 0), 0);
+                            // Scaling logic matches New Order: Cost * SizeMult * Qty
+                            const totalFillingCost = totalFillingCostBase * sizeMult * qty;
+
+                            totalCalculatedCost += totalFillingCost;
+
+                            currentFillings.forEach(f => {
+                                aggregatedItems.push({
+                                    name: `Filling: ${f.name}`,
+                                    type: 'Ingredient',
+                                    requiredAmount: sizeMult * qty, // Abstract unit
+                                    unit: 'portion',
+                                    costToBake: (Number(f.cost) || 0) * sizeMult * qty,
+                                });
+                            });
+                        }
+                    }
+
+                    // 4. Packaging
+                    if (pkgData) {
+                        pkgData.forEach((pkg: any) => {
+                            const pkgCost = (pkg.purchase_price / pkg.purchase_quantity) * qty;
+                            totalCalculatedCost += pkgCost;
+                            aggregatedItems.push({
+                                id: pkg.id,
+                                name: pkg.name,
+                                type: 'Packaging',
+                                requiredAmount: qty,
+                                unit: 'unit',
+                                costToBake: pkgCost,
+                                stock: pkg.current_stock,
+                                shortfall: Math.max(0, qty - (pkg.current_stock || 0))
+                            });
+                        });
+                    }
+
+                    // 5. Overhead (Gas/Elec)
+                    const duration = item.recipes?.baking_duration_minutes || 45;
+                    const overheadCost = ((gasRate + elecRate) * duration) * qty; // Per batch (simplified per cake)
+                    totalCalculatedCost += overheadCost;
+
+                    aggregatedItems.push({
+                        name: `Overhead (Gas/Elec - ${duration}m)`,
+                        type: 'Overhead',
+                        requiredAmount: duration * qty,
+                        unit: 'mins',
+                        costToBake: overheadCost
+                    });
+                }
+            }
+            // --- SCENARIO B: DESSERT ---
+            else if (item.dessert_id) {
+                const cost = (item.desserts?.cost || 0) * item.quantity;
+                totalCalculatedCost += cost;
+
+                aggregatedItems.push({
+                    name: `${item.desserts?.name || 'Dessert'} (${item.quantity}x)`,
+                    type: 'Ingredient',
+                    requiredAmount: item.quantity,
+                    unit: 'unit',
+                    costToBake: cost,
+                    stock: 999,
+                    shortfall: 0,
+                    costToRestock: 0
+                });
+            }
+
+            // --- EXTRAS (Toppers, Balloons, etc.) ---
+            if (item.custom_extras && item.custom_extras.addons && Array.isArray(item.custom_extras.addons)) {
+                item.custom_extras.addons.forEach((addon: any) => {
+                    const addonCost = Number(addon.cost || 0);
+                    totalCalculatedCost += addonCost;
+
+                    aggregatedItems.push({
+                        name: `${addon.name} (Extra)`,
+                        type: addon.inventory_id ? 'Packaging' : 'Adjustment',
+                        requiredAmount: 1,
+                        unit: 'unit',
+                        costToBake: addonCost,
+                        id: addon.inventory_id || undefined,
+                        stock: 999,
+                        shortfall: 0,
+                        costToRestock: 0
+                    });
+                });
+            }
+        }
+
+        // --- MERGE DUPLICATES ---
+        // Combine Flour from multiple cakes into one line item
+        const mergedItems: ProductionItem[] = [];
+        aggregatedItems.forEach(item => {
+            const existing = mergedItems.find(i => (i.id && i.id === item.id) || (!i.id && i.name === item.name));
+            if (existing) {
+                existing.requiredAmount += item.requiredAmount;
+                existing.costToBake += item.costToBake;
+                if (item.shortfall) existing.shortfall = (existing.shortfall || 0) + item.shortfall;
+            } else {
+                mergedItems.push(item);
+            }
+        });
+
+        const profit = (orderData.total_price - (orderData.vat || 0)) - totalCalculatedCost;
+
+        const summary: ProductionSummary = {
+            items: mergedItems,
+            totalCostToBake: totalCalculatedCost,
+            totalRestockCost: 0, // Recalc if needed
+            totalProfit: profit
+        };
+
+        setProductionData(summary);
+    };
+
     const startEditingMaterials = () => {
         if (productionData) {
-            setEditedItems(JSON.parse(JSON.stringify(productionData.items))); // Deep copy
+            setEditedItems(JSON.parse(JSON.stringify(productionData.items)));
             setIsEditingMaterials(true);
         }
     };
@@ -140,13 +315,7 @@ export default function OrderDetailsPage() {
     const saveMaterials = async () => {
         if (!productionData || !order) return;
 
-        // Recalculate totals based on edited items
-        const newTotalCost = editedItems.reduce((acc, item) => acc + (item.costToBake || 0), 0); // Assuming costToBake is the cost used
-        // Note: costToBake in production.ts is Qty * UnitPrice. 
-        // If user edits Qty, we should update Cost. If user edits Cost directly, we use that.
-        // Let's assume user edits Qty and Cost is auto-updated, OR user edits Cost directly.
-        // For simplicity, let's sum the 'costToBake' field which we will make editable or derived.
-
+        const newTotalCost = editedItems.reduce((acc, item) => acc + (item.costToBake || 0), 0);
         const newProfit = (order.total_price - (order.vat || 0)) - newTotalCost;
 
         const newSnapshot: ProductionSummary = {
@@ -170,7 +339,7 @@ export default function OrderDetailsPage() {
             alert("Error saving materials");
         } else {
             setProductionData(newSnapshot);
-            setOrder({ ...order, total_cost: newTotalCost, profit: newProfit }); // Optimistic update
+            setOrder({ ...order, total_cost: newTotalCost, profit: newProfit });
             setIsEditingMaterials(false);
         }
         setLoading(false);
@@ -191,7 +360,7 @@ export default function OrderDetailsPage() {
             requiredAmount: 1,
             unit: 'unit',
             costToBake: customAdjCost,
-            costToRestock: customAdjCost, // Assume immediate cost
+            costToRestock: customAdjCost,
             stock: 0,
             shortfall: 0
         };
@@ -255,7 +424,6 @@ export default function OrderDetailsPage() {
         });
     };
 
-
     const updateStatus = async (newStatus: string) => {
         if (newStatus === 'Confirmed') {
             setModalConfig({
@@ -296,7 +464,6 @@ export default function OrderDetailsPage() {
             onConfirm: async () => {
                 setBaking(true);
                 try {
-                    // 1. Deduct Stock (Iterate through the calculated requirements)
                     for (const item of productionData.items) {
                         if ((item.type === 'Ingredient' || item.type === 'Packaging') && item.id) {
                             const { error } = await supabase.rpc('deduct_stock', { ing_id: item.id, qty: item.requiredAmount });
@@ -304,7 +471,6 @@ export default function OrderDetailsPage() {
                         }
                     }
 
-                    // 2. Update Order Status
                     const { error } = await supabase
                         .from("orders")
                         .update({ status: "Baking", total_cost: productionData.totalCostToBake, profit: productionData.totalProfit })
@@ -312,7 +478,6 @@ export default function OrderDetailsPage() {
 
                     if (error) throw error;
 
-                    // Success Modal
                     setModalConfig({
                         isOpen: true,
                         title: "Baking Started",
@@ -339,22 +504,45 @@ export default function OrderDetailsPage() {
         });
     };
 
+    const updateAmountPaid = async () => {
+        const newAmount = window.prompt("Enter new amount paid:", order.amount_paid || 0);
+        if (newAmount === null) return;
+        const parsed = parseFloat(newAmount);
+        if (isNaN(parsed)) return;
+
+        const { error } = await supabase
+            .from('orders')
+            .update({ amount_paid: parsed })
+            .eq('id', order.id);
+
+        if (error) {
+            alert("Error updating amount paid: " + error.message);
+        } else {
+            fetchOrderDetails();
+        }
+    };
+
     if (loading) return <div className="p-12 text-center text-slate-400">Loading Job Card...</div>;
     if (!order) return <div className="p-12 text-center text-red-400">Order not found.</div>;
 
+    // Use total calculated from function if not saved/confirmed, otherwise use db value but prefer calc for "live" view
+    // Actually, we want the most accurate real-time cost if looking at details.
+    const displayCost = productionData?.totalCostToBake ?? order.total_cost ?? 0;
+    const displayProfit = productionData?.totalProfit ?? order.profit ?? 0;
+
     return (
-        <div className="min-h-screen p-8 font-sans text-slate-800 bg-[#FDFBF7]">
+        <div className="min-h-screen p-4 sm:p-6 md:p-8 font-sans text-slate-800 bg-[#FDFBF7]">
 
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => router.push('/orders')} className="flex items-center gap-2 bg-white text-slate-600 px-5 py-2.5 rounded-full font-bold shadow-sm border border-[#E8ECE9] hover:bg-[#B03050] hover:text-white hover:border-[#B03050] transition-all group">
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                    <button onClick={() => router.push('/orders')} className="w-fit flex items-center gap-2 bg-white text-slate-600 px-5 py-2.5 rounded-full font-bold shadow-sm border border-[#E8ECE9] hover:bg-[#B03050] hover:text-white hover:border-[#B03050] transition-all group">
                         <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
                         Back
                     </button>
                     <div>
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-3xl font-serif text-[#B03050]">Order #{order.id.slice(0, 8)}</h1>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <h1 className="text-2xl md:text-3xl font-serif text-[#B03050]">Order #{order.id.slice(0, 8)}</h1>
                             <select
                                 value={order.status}
                                 onChange={(e) => updateStatus(e.target.value)}
@@ -376,7 +564,7 @@ export default function OrderDetailsPage() {
                                 <option value="Cancelled">Cancelled</option>
                             </select>
                         </div>
-                        <p className="text-slate-400 font-medium flex items-center gap-2 mt-1">
+                        <p className="text-slate-400 font-medium flex items-center gap-2 mt-1 flex-wrap">
                             {order.customer_id ? (
                                 <Link href={`/customers?id=${order.customer_id}`} className="hover:text-[#B03050] hover:underline transition-colors">
                                     {order.customer_name}
@@ -384,19 +572,15 @@ export default function OrderDetailsPage() {
                             ) : (
                                 order.customer_name
                             )}
-                            <span>•</span>
+                            <span className="hidden md:inline">•</span>
                             <span className="text-xs">Ordered: {new Date(order.created_at).toLocaleDateString()}</span>
-                            <span>•</span>
+                            <span className="hidden md:inline">•</span>
                             <span className="text-xs">Delivery: {new Date(order.delivery_date).toLocaleDateString()}</span>
                         </p>
                     </div>
                 </div>
 
-                <div className="flex gap-3">
-                    <Link href={`/orders/${id}/baking-list`} className="group flex items-center gap-2 px-4 py-3 bg-white border border-[#E8ECE9] rounded-full text-slate-500 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all shadow-sm">
-                        <ChefHat className="w-4 h-4" />
-                        <span className="text-xs font-bold hidden group-hover:inline">Baking List</span>
-                    </Link>
+                <div className="flex flex-wrap gap-3">
                     {order.status === 'Pending' && (
                         <button
                             onClick={async () => {
@@ -407,13 +591,7 @@ export default function OrderDetailsPage() {
                                     type: "info",
                                     onConfirm: async () => {
                                         try {
-                                            // Fetch account details
-                                            const { data: appSettings } = await supabase
-                                                .from('app_settings')
-                                                .select('value')
-                                                .eq('key', 'account_details')
-                                                .single();
-
+                                            const { data: appSettings } = await supabase.from('app_settings').select('value').eq('key', 'account_details').single();
                                             const accountDetails = appSettings?.value || "";
                                             const receiptUrl = `${window.location.origin}/pay/${order.id}`;
 
@@ -427,9 +605,7 @@ export default function OrderDetailsPage() {
                                                 })
                                             });
 
-                                            // Update status to Confirmed
                                             const { error: updateError } = await supabase.from("orders").update({ status: 'Confirmed' }).eq("id", order.id);
-
                                             if (updateError) throw updateError;
 
                                             setModalConfig({
@@ -454,26 +630,26 @@ export default function OrderDetailsPage() {
                                     }
                                 });
                             }}
-                            className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-full font-bold shadow-lg shadow-green-200 hover:bg-green-700 hover:scale-105 transition-all"
+                            className="flex items-center gap-1 bg-green-600 text-white px-3 py-2 rounded-full font-bold shadow-sm hover:bg-green-700 transition-all text-xs"
                         >
-                            <Mail className="w-4 h-4" />
-                            <span>Confirm Order</span>
+                            <Mail className="w-3 h-3" />
+                            <span>Confirm</span>
                         </button>
                     )}
                     {order && <InvoicePDFButton order={order} />}
                     <Link href={`/orders/${id}/edit`} className="group flex items-center gap-2 px-4 py-3 bg-white border border-[#E8ECE9] rounded-full text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm">
                         <Edit className="w-4 h-4" />
-                        <span className="text-xs font-bold hidden group-hover:inline">Edit</span>
+                        <span className="text-xs font-bold hidden sm:inline">Edit</span>
                     </Link>
                     <button onClick={handleDelete} className="group flex items-center gap-2 px-4 py-3 bg-white border border-[#E8ECE9] rounded-full text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all shadow-sm">
                         <Trash2 className="w-4 h-4" />
-                        <span className="text-xs font-bold hidden group-hover:inline">Delete</span>
+                        <span className="text-xs font-bold hidden sm:inline">Delete</span>
                     </button>
                     {order.status === 'Pending' && (
                         <button
                             onClick={handleBake}
                             disabled={baking}
-                            className="flex items-center gap-2 bg-[#B03050] text-white px-6 py-3 rounded-full font-bold shadow-lg shadow-pink-200 hover:bg-[#902040] hover:scale-105 transition-all"
+                            className="flex items-center gap-2 bg-[#B03050] text-white px-6 py-3 rounded-full font-bold shadow-lg shadow-pink-200 hover:bg-[#902040] hover:scale-105 transition-all text-xs sm:text-sm"
                         >
                             <Flame className="w-5 h-5 text-white" />
                             {baking ? "Heating Oven..." : "Bake!"}
@@ -489,170 +665,223 @@ export default function OrderDetailsPage() {
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9]">
                         <h2 className="text-sm font-bold uppercase text-slate-400 mb-4 tracking-wider">Job Details</h2>
                         <div className="space-y-4">
-                            {order.order_items.map((item: any, idx: number) => (
-                                <div key={idx} className="p-4 bg-[#FDFBF7] rounded-2xl border border-[#E8ECE9]">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <h3 className="font-serif text-lg text-slate-800">{item.recipes?.name}</h3>
-                                        <span className="bg-white px-2 py-1 rounded-md text-xs font-bold shadow-sm border border-[#E8ECE9]">x{item.quantity}</span>
-                                    </div>
-                                    <div className="text-sm text-slate-500 space-y-1">
-                                        <p>Size: <span className="font-bold text-slate-700">{item.size_inches}" ({item.layers} Layers)</span></p>
-                                        <p>Filling: <span className="font-bold text-slate-700">{item.fillings?.name || "None"}</span></p>
-                                    </div>
+                            {order.order_items.map((item: any, idx: number) => {
+                                const isDessert = !!item.dessert_id;
+                                const name = isDessert ? item.desserts?.name || 'Dessert' : item.recipes?.name || 'Cake';
+                                const desc = isDessert ? item.desserts?.description : '';
 
-                                    {/* Baking Instructions */}
-                                    <details className="mt-4 group">
-                                        <summary className="list-none flex items-center justify-between p-3 bg-white hover:bg-slate-50 rounded-xl cursor-pointer transition-all border border-[#E8ECE9]">
-                                            <div className="flex items-center gap-2 text-slate-600 font-bold text-xs">
-                                                <FileText className="w-4 h-4" />
-                                                <span>Baking Instructions</span>
+                                // Logic: Look up fillings for precise cost calculation
+                                let fillingBreakdown: any[] = [];
+                                let fillingsTotal = 0;
+                                if (!isDessert && item.fillings && Array.isArray(item.fillings)) {
+                                    item.fillings.forEach((fid: string) => {
+                                        const f = allFillings.find(x => x.id === fid);
+                                        if (f) {
+                                            const price = Number(f.price) || 0;
+                                            fillingsTotal += price;
+                                            fillingBreakdown.push({ name: f.name, price: price });
+                                        }
+                                    });
+                                }
+
+                                let extrasList: any[] = [];
+                                let extrasTotal = 0;
+                                if (item.custom_extras && Array.isArray(item.custom_extras.addons)) {
+                                    extrasList = item.custom_extras.addons;
+                                } else if (item.custom_extras && item.custom_extras.addons && typeof item.custom_extras.addons === 'object') {
+                                    // Handle case where addons is a single object, not array
+                                    extrasList = [item.custom_extras.addons];
+                                } else {
+                                    extrasList = [];
+                                }
+                                if (!Array.isArray(extrasList)) extrasList = [];
+                                extrasTotal = extrasList.reduce((a, b) => a + (b.price || 0), 0);
+
+                                // Base Price is Unit Price minus extras minus fillings
+                                const unitPriceTotal = Number(item.item_price);
+                                const basePrice = Math.max(0, unitPriceTotal - fillingsTotal - extrasTotal);
+
+                                return (
+                                    <div key={idx} className="p-4 bg-[#FDFBF7] rounded-2xl border border-[#E8ECE9]">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h3 className="font-serif text-lg text-slate-800 flex items-center gap-2">
+                                                {isDessert && <Sparkles className="w-4 h-4 text-[#B03050]" />}
+                                                {name}
+                                                {isDessert && <span className="text-xs font-sans font-bold text-slate-400 uppercase tracking-wide bg-slate-100 px-2 py-0.5 rounded">Dessert</span>}
+                                            </h3>
+                                            <span className="bg-white px-2 py-1 rounded-md text-xs font-bold shadow-sm border border-[#E8ECE9]">x{item.quantity}</span>
+                                        </div>
+
+                                        {desc && <div className="text-xs text-slate-400 italic mb-1">{desc}</div>}
+
+                                        {!isDessert && (
+                                            <div className="text-sm text-slate-500 space-y-1">
+                                                <p>Size: <span className="font-bold text-slate-700">{item.size_inches}" ({item.layers} Layers)</span></p>
                                             </div>
-                                            <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
-                                        </summary>
-                                        <div className="mt-2 text-xs text-slate-600 bg-white p-4 rounded-xl border border-[#E8ECE9] whitespace-pre-wrap leading-relaxed shadow-sm">
-                                            {item.recipes?.instructions || "No instructions available for this recipe."}
-                                        </div>
-                                    </details>
+                                        )}
 
-                                    {item.custom_extras && item.custom_extras.length > 0 && (
-                                        <div className="mt-3 pt-3 border-t border-[#E8ECE9]">
-                                            <p className="text-[10px] font-bold uppercase text-slate-400 mb-1">Extras</p>
-                                            {item.custom_extras.map((ex: any, i: number) => (
-                                                <div key={i} className="flex justify-between text-xs">
-                                                    <span>{ex.name}</span>
-                                                    <span className="font-bold">₦{ex.price}</span>
+                                        <div className="text-xs text-slate-500 mt-3 pt-3 border-t border-slate-200 space-y-1">
+                                            <div className="flex justify-between">
+                                                <span>Base Price:</span>
+                                                <span className="font-bold text-slate-700">₦{basePrice.toLocaleString()}</span>
+                                            </div>
+
+                                            {fillingBreakdown.length > 0 && (
+                                                <div className="py-1 border-t border-slate-100 mt-1">
+                                                    <span className="block mb-1 text-slate-400 font-bold uppercase text-[10px]">Fillings</span>
+                                                    {fillingBreakdown.map((f, i) => (
+                                                        <div key={i} className="flex justify-between pl-2 border-l-2 border-slate-200 mb-1">
+                                                            <span>{f.name}</span>
+                                                            <span>+₦{f.price.toLocaleString()}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            ))}
+                                            )}
+
+                                            {extrasList.length > 0 && (
+                                                <div className="py-1 border-t border-slate-100 mt-1">
+                                                    <span className="block mb-1 text-slate-400 font-bold uppercase text-[10px]">Add-ons</span>
+                                                    {extrasList.map((ex: any, i: number) => (
+                                                        <div key={i} className="flex justify-between pl-2 border-l-2 border-slate-200 mb-1">
+                                                            <span>{ex.name}</span>
+                                                            <span>+₦{ex.price?.toLocaleString?.() ?? 0}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className="flex justify-between mt-2 pt-2 border-t border-dashed border-slate-300">
+                                                <span className="font-bold text-slate-600">Line Total:</span>
+                                                <span className="font-bold text-[#B03050]">
+                                                    ₦{((item.item_price + extrasTotal) * item.quantity).toLocaleString()}
+                                                </span>
+                                            </div>
                                         </div>
-                                    )}
-                                </div>
-                            ))}
+
+                                        {!isDessert && (
+                                            <details className="mt-4 group">
+                                                <summary className="list-none flex items-center justify-between p-3 bg-white hover:bg-slate-50 rounded-xl cursor-pointer transition-all border border-[#E8ECE9]">
+                                                    <div className="flex items-center gap-2 text-slate-600 font-bold text-xs">
+                                                        <FileText className="w-4 h-4" />
+                                                        <span>Baking Instructions</span>
+                                                    </div>
+                                                    <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                                                </summary>
+                                                <div className="mt-2 text-xs text-slate-600 bg-white p-4 rounded-xl border border-[#E8ECE9] whitespace-pre-wrap leading-relaxed shadow-sm">
+                                                    {item.recipes?.instructions || "No instructions available for this recipe."}
+                                                </div>
+                                            </details>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
 
+                        {/* ORDER FINANCIAL SUMMARY */}
                         <div className="mt-6 pt-6 border-t border-[#E8ECE9]">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-sm text-slate-400 font-bold">Total Price</span>
-                                <span className="text-2xl font-serif text-[#B03050]">₦{(order.total_price || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                            </div>
-                            {order.discount > 0 && (
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-xs text-slate-400">Discount</span>
-                                    <span className="text-sm font-bold text-green-600">-₦{(order.discount).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <div className="flex flex-col gap-2 mb-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs text-slate-400">Subtotal</span>
+                                    <span className="text-sm font-bold text-slate-700">₦{(order.total_price + (order.discount || 0) - (order.vat || 0)).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
-                            )}
-                            {order.vat > 0 && (
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-xs text-slate-400">VAT ({order.vat_type})</span>
-                                    <span className="text-sm font-bold text-slate-600">
-                                        {order.vat_type === 'exclusive' ? '+' : ''}₦{(order.vat).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </span>
+                                {order.discount > 0 && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs text-slate-400">Discount</span>
+                                        <span className="text-sm font-bold text-green-600">-₦{(order.discount).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                )}
+                                {order.vat > 0 && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs text-slate-400">VAT ({order.vat_type})</span>
+                                        <span className="text-sm font-bold text-slate-600">{order.vat_type === 'exclusive' ? '+' : ''}₦{(order.vat).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center py-2 border-y border-slate-100 my-2">
+                                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Grand Total</span>
+                                    <span className="text-2xl font-serif text-[#B03050]">₦{(order.total_price || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
-                            )}
-                            {order.tip > 0 && (
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-xs text-slate-400">Tip</span>
-                                    <span className="text-sm font-bold text-green-600">+₦{(order.tip).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                </div>
-                            )}
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-xs text-slate-400">Amount Paid</span>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm font-bold text-slate-700">₦{(order.amount_paid || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                    <button
-                                        onClick={async () => {
-                                            const amount = prompt("Enter amount paid:", (order.amount_paid || 0).toString());
-                                            if (amount === null) return;
-                                            const numAmount = parseFloat(amount);
-                                            if (isNaN(numAmount)) return;
-
-                                            const { error } = await supabase.from('orders').update({
-                                                amount_paid: numAmount
-                                            }).eq('id', order.id);
-                                            if (!error) fetchOrderDetails();
-                                        }}
-                                        className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
-                                    >
-                                        <Edit className="w-3 h-3" />
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="flex justify-between items-center pt-2 border-t border-[#E8ECE9]">
-                                <span className="text-xs font-bold text-slate-500">Balance Due</span>
-                                <div className="flex items-center gap-2">
-                                    <span className={`text-lg font-bold ${((order.total_price || 0) - (order.amount_paid || 0)) > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                                        ₦{Math.max(0, (order.total_price || 0) - (order.amount_paid || 0)).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </span>
-                                    {((order.total_price || 0) - (order.amount_paid || 0)) > 0 && (
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs text-slate-400">Amount Paid</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-bold text-slate-700">₦{(order.amount_paid || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                         <button
-                                            onClick={async () => {
-                                                setModalConfig({
-                                                    isOpen: true,
-                                                    title: "Confirm Payment",
-                                                    message: "Mark this order as fully paid?",
-                                                    type: "info",
-                                                    onConfirm: async () => {
-                                                        // 1. Update DB
-                                                        const { error } = await supabase.from('orders').update({
-                                                            amount_paid: order.total_price
-                                                        }).eq('id', order.id);
-
-                                                        if (error) {
-                                                            setModalConfig({
-                                                                isOpen: true,
-                                                                title: "Error",
-                                                                message: "Error updating payment: " + error.message,
-                                                                type: "danger",
-                                                                onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
-                                                            });
-                                                            return;
-                                                        }
-
-                                                        // 2. Send Payment Received Email
-                                                        try {
-                                                            await fetch('/api/send-email', {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({
-                                                                    to: order.customer_email,
-                                                                    subject: `Payment Verified - Order #${order.id.slice(0, 8)}`,
-                                                                    html: PaymentReceivedTemplate({ ...order, amount_paid: order.total_price })
-                                                                })
-                                                            });
-
-                                                            setModalConfig({
-                                                                isOpen: true,
-                                                                title: "Success",
-                                                                message: "Payment updated & Email sent!",
-                                                                type: "success",
-                                                                onConfirm: () => {
-                                                                    setModalConfig(prev => ({ ...prev, isOpen: false }));
-                                                                    fetchOrderDetails();
-                                                                    // We could also close automatically here
-                                                                }
-                                                            });
-                                                        } catch (e) {
-                                                            setModalConfig({
-                                                                isOpen: true,
-                                                                title: "Warning",
-                                                                message: "Payment updated, but failed to send email.",
-                                                                type: "info",
-                                                                onConfirm: () => {
-                                                                    setModalConfig(prev => ({ ...prev, isOpen: false }));
-                                                                    fetchOrderDetails();
-                                                                }
-                                                            });
-                                                        }
-                                                    }
-                                                });
-                                            }}
-                                            className="text-[10px] bg-green-600 text-white px-3 py-1.5 rounded-lg font-bold shadow-md hover:bg-green-700 transition-all flex items-center gap-1"
+                                            onClick={updateAmountPaid}
+                                            className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
                                         >
-                                            <CheckCircle className="w-3 h-3" />
-                                            Mark Paid
+                                            <Edit className="w-3 h-3" />
                                         </button>
-                                    )}
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center pt-2">
+                                    <span className="text-xs font-bold text-slate-500">Balance Due</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-lg font-bold ${((order.total_price || 0) - (order.amount_paid || 0)) > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                            ₦{Math.max(0, (order.total_price || 0) - (order.amount_paid || 0)).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                        {((order.total_price || 0) - (order.amount_paid || 0)) > 0 && (
+                                            <button
+                                                onClick={async () => {
+                                                    setModalConfig({
+                                                        isOpen: true,
+                                                        title: "Confirm Payment",
+                                                        message: "Mark this order as fully paid? This will also send a payment receipt email.",
+                                                        type: "info",
+                                                        onConfirm: async () => {
+                                                            const { error } = await supabase.from('orders').update({
+                                                                amount_paid: order.total_price,
+                                                                payment_status: 'Paid'
+                                                            }).eq('id', order.id);
+
+                                                            if (error) {
+                                                                alert("Error updating payment: " + error.message);
+                                                                return;
+                                                            }
+
+                                                            try {
+                                                                await fetch('/api/send-email', {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({
+                                                                        to: order.customer_email,
+                                                                        subject: `Payment Verified - Order #${order.id.slice(0, 8)}`,
+                                                                        html: PaymentReceivedTemplate({ ...order, amount_paid: order.total_price })
+                                                                    })
+                                                                });
+                                                                setModalConfig({
+                                                                    isOpen: true,
+                                                                    title: "Success",
+                                                                    message: "Payment updated & Email sent!",
+                                                                    type: "success",
+                                                                    onConfirm: () => {
+                                                                        setModalConfig(prev => ({ ...prev, isOpen: false }));
+                                                                        fetchOrderDetails();
+                                                                    }
+                                                                });
+                                                            } catch (e) {
+                                                                setModalConfig({
+                                                                    isOpen: true,
+                                                                    title: "Warning",
+                                                                    message: "Payment updated, but failed to send email.",
+                                                                    type: "info",
+                                                                    onConfirm: () => {
+                                                                        setModalConfig(prev => ({ ...prev, isOpen: false }));
+                                                                        fetchOrderDetails();
+                                                                    }
+                                                                });
+                                                            }
+                                                        }
+                                                    });
+                                                }}
+                                                className="text-[10px] bg-green-600 text-white px-3 py-1.5 rounded-lg font-bold shadow-md hover:bg-green-700 transition-all flex items-center gap-1"
+                                            >
+                                                <CheckCircle className="w-3 h-3" />
+                                                Mark Paid
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
+
                             {order.receipt_url && (
                                 <div className="mt-4 pt-4 border-t border-[#E8ECE9]">
                                     <div className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
@@ -671,6 +900,7 @@ export default function OrderDetailsPage() {
                                     </div>
                                 </div>
                             )}
+
                             <div className="mt-2 text-center">
                                 <button
                                     onClick={() => {
@@ -683,7 +913,7 @@ export default function OrderDetailsPage() {
                                             type: "success",
                                             confirmText: "OK",
                                             cancelText: "Close",
-                                            onConfirm: () => { }
+                                            onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false }))
                                         });
                                     }}
                                     className="text-xs font-bold text-slate-400 hover:text-[#B03050] transition-colors"
@@ -694,6 +924,7 @@ export default function OrderDetailsPage() {
                         </div>
                     </div>
 
+                    {/* Delivery & Notes Card */}
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#E8ECE9]">
                         <h2 className="text-sm font-bold uppercase text-slate-400 mb-4 tracking-wider">Delivery & Notes</h2>
                         <div className="space-y-4 text-sm">
@@ -726,7 +957,6 @@ export default function OrderDetailsPage() {
                 <div className="lg:col-span-2">
                     {productionData ? (
                         <div className="space-y-6">
-
                             {/* Financial Dashboard for this Order */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="bg-white p-6 rounded-[2rem] border border-[#E8ECE9] shadow-sm flex flex-col justify-between relative overflow-hidden group">
@@ -734,15 +964,15 @@ export default function OrderDetailsPage() {
                                         <DollarSign className="w-12 h-12 text-slate-400" />
                                     </div>
                                     <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">Est. Cost</p>
-                                    <p className="text-3xl font-serif text-slate-800">₦{(productionData.totalCostToBake || 0).toLocaleString()}</p>
+                                    <p className="text-3xl font-serif text-slate-800">₦{displayCost.toLocaleString()}</p>
                                 </div>
                                 <div className="bg-white p-6 rounded-[2rem] border border-[#E8ECE9] shadow-sm flex flex-col justify-between relative overflow-hidden group">
                                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                        <Flame className={`w-12 h-12 ${(productionData.totalProfit || 0) > 0 ? 'text-green-500' : 'text-red-500'}`} />
+                                        <Flame className={`w-12 h-12 ${displayProfit > 0 ? 'text-green-500' : 'text-red-500'}`} />
                                     </div>
                                     <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">Profit Margin</p>
-                                    <p className={`text-3xl font-serif ${(productionData.totalProfit || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        ₦{(productionData.totalProfit || 0).toLocaleString()}
+                                    <p className={`text-3xl font-serif ${displayProfit > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        ₦{displayProfit.toLocaleString()}
                                     </p>
                                 </div>
                             </div>
@@ -782,70 +1012,72 @@ export default function OrderDetailsPage() {
                                         )}
                                     </div>
                                 </div>
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-[#FDFBF7] text-[10px] uppercase font-bold text-slate-500">
-                                        <tr>
-                                            <th className="p-4">Item</th>
-                                            <th className="p-4">Type</th>
-                                            <th className="p-4">Qty Needed</th>
-                                            <th className="p-4 text-right">Cost (₦)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-[#E8ECE9]">
-                                        {(isEditingMaterials ? editedItems : productionData.items).map((item, idx) => (
-                                            <tr key={idx} className="hover:bg-[#FDFBF7] transition-colors">
-                                                <td className="p-4 font-medium text-slate-700">
-                                                    {isEditingMaterials && item.type === 'Adjustment' ? (
-                                                        <input
-                                                            value={item.name}
-                                                            onChange={(e) => updateEditedItem(idx, 'name', e.target.value as any)}
-                                                            className="w-full p-1 border rounded text-xs"
-                                                        />
-                                                    ) : item.name}
-                                                </td>
-                                                <td className="p-4 text-xs">
-                                                    <span className={`px-2 py-1 rounded-full font-bold ${item.type === 'Overhead' ? 'bg-yellow-100 text-yellow-700' :
-                                                        item.type === 'Packaging' ? 'bg-purple-100 text-purple-700' :
-                                                            item.type === 'Adjustment' ? 'bg-blue-100 text-blue-700' :
-                                                                'bg-slate-100 text-slate-500'
-                                                        }`}>
-                                                        {item.type}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4 text-slate-600">
-                                                    {isEditingMaterials ? (
-                                                        <div className="flex items-center gap-2">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-[#FDFBF7] text-[10px] uppercase font-bold text-slate-500">
+                                            <tr>
+                                                <th className="p-4">Item</th>
+                                                <th className="p-4">Type</th>
+                                                <th className="p-4">Qty Needed</th>
+                                                <th className="p-4 text-right">Cost (₦)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[#E8ECE9]">
+                                            {(isEditingMaterials ? editedItems : productionData.items).map((item, idx) => (
+                                                <tr key={idx} className="hover:bg-[#FDFBF7] transition-colors">
+                                                    <td className="p-4 font-medium text-slate-700">
+                                                        {isEditingMaterials && item.type === 'Adjustment' ? (
+                                                            <input
+                                                                value={item.name}
+                                                                onChange={(e) => updateEditedItem(idx, 'name', e.target.value as any)}
+                                                                className="w-full p-1 border rounded text-xs"
+                                                            />
+                                                        ) : item.name}
+                                                    </td>
+                                                    <td className="p-4 text-xs">
+                                                        <span className={`px-2 py-1 rounded-full font-bold ${item.type === 'Overhead' ? 'bg-yellow-100 text-yellow-700' :
+                                                            item.type === 'Packaging' ? 'bg-purple-100 text-purple-700' :
+                                                                item.type === 'Adjustment' ? 'bg-blue-100 text-blue-700' :
+                                                                    'bg-slate-100 text-slate-500'
+                                                            }`}>
+                                                            {item.type}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-slate-600">
+                                                        {isEditingMaterials ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <input
+                                                                    type="number"
+                                                                    value={item.requiredAmount}
+                                                                    onChange={(e) => updateEditedItem(idx, 'requiredAmount', Number(e.target.value))}
+                                                                    className="w-20 p-1 border rounded text-xs"
+                                                                />
+                                                                <span className="text-xs text-slate-400">{item.unit}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2">
+                                                                <span>{(item.requiredAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                                                                <span className="text-xs text-slate-400">{item.unit}</span>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono text-slate-600">
+                                                        {isEditingMaterials ? (
                                                             <input
                                                                 type="number"
-                                                                value={item.requiredAmount}
-                                                                onChange={(e) => updateEditedItem(idx, 'requiredAmount', Number(e.target.value))}
-                                                                className="w-20 p-1 border rounded text-xs"
+                                                                value={item.costToBake}
+                                                                onChange={(e) => updateEditedItem(idx, 'costToBake', Number(e.target.value))}
+                                                                className="w-24 p-1 border rounded text-xs text-right"
                                                             />
-                                                            <span className="text-xs text-slate-400">{item.unit}</span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-center gap-2">
-                                                            <span>{(item.requiredAmount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                                                            <span className="text-xs text-slate-400">{item.unit}</span>
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 text-right font-mono text-slate-600">
-                                                    {isEditingMaterials ? (
-                                                        <input
-                                                            type="number"
-                                                            value={item.costToBake}
-                                                            onChange={(e) => updateEditedItem(idx, 'costToBake', Number(e.target.value))}
-                                                            className="w-24 p-1 border rounded text-xs text-right"
-                                                        />
-                                                    ) : (
-                                                        <span>{(item.costToBake || 0).toLocaleString()}</span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                                        ) : (
+                                                            <span>{(item.costToBake || 0).toLocaleString()}</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
 
                                 {/* Add Adjustment Row */}
                                 <div className="p-4 bg-[#FDFBF7] border-t border-[#E8ECE9] flex gap-2 items-center">
@@ -882,6 +1114,8 @@ export default function OrderDetailsPage() {
                 message={modalConfig.message}
                 type={modalConfig.type}
                 onConfirm={modalConfig.onConfirm}
+                confirmText={modalConfig.confirmText}
+                cancelText={modalConfig.cancelText}
             />
         </div>
     );
