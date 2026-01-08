@@ -2,7 +2,6 @@ import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
 
 // --- FONT REGISTRATION ---
-// Ensure these files exist in your /public/fonts/ folder
 Font.register({
   family: 'Roboto',
   fonts: [
@@ -19,9 +18,7 @@ Font.register({
 });
 
 // --- CONSTANTS ---
-// UPDATE THIS: If '\u20A6' fails, use 'N' or 'NGN'. 
-// Your font file likely lacks the Naira glyph if it shows as '|'.
-const CURRENCY_SIGN = 'N';
+const CURRENCY_SIGN = 'N'; // Hardcoded for safety
 const BRAND_COLOR = '#B03050';
 const TEXT_DARK = '#1E293B';
 const TEXT_LIGHT = '#64748B';
@@ -49,7 +46,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 120, // Increased size
+    width: 120, // INCREASED SIZE
     height: 120,
     marginRight: 15,
     borderRadius: 8,
@@ -285,7 +282,7 @@ const styles = StyleSheet.create({
   }
 });
 
-// Helper to format currency
+// Safe money formatter using simple strings
 const formatMoney = (amount: any) => {
   const num = Number(amount) || 0;
   return `${CURRENCY_SIGN}${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -316,6 +313,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
         {/* --- HEADER --- */}
         <View style={styles.header}>
           <View style={styles.brandColumn}>
+            {/* Ensure logo.png is in public/logo.png */}
             <Image src="/logo.png" style={styles.logo} />
             <View>
               <Text style={styles.brandName}>BAKES & MORE</Text>
@@ -377,15 +375,42 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
           {order.order_items?.map((item: any, i: number) => {
             const isDessert = !!item.dessert_id;
             const name = isDessert ? item.desserts?.name || 'Dessert' : item.recipes?.name || 'Custom Cake';
-            const desc = isDessert
+
+            // 1. Resolve Fillings List first to append names to description
+            let fillingNames: string[] = [];
+            let fillingTotal = 0;
+            let fillingBreakdown: { name: string, price: number }[] = [];
+
+            if (!isDessert && item.fillings && Array.isArray(item.fillings)) {
+              item.fillings.forEach((fid: string | any) => {
+                // Handle ID matching safely (convert to string)
+                const idToFind = typeof fid === 'object' ? fid.id : fid;
+                const found = allFillings.find((f: any) => String(f.id) == String(idToFind));
+
+                if (found) {
+                  fillingNames.push(found.name);
+                  const price = Number(found.price) || 0;
+                  fillingTotal += price;
+                  fillingBreakdown.push({ name: found.name, price });
+                }
+              });
+            }
+
+            // 2. Build Description
+            let desc = isDessert
               ? item.desserts?.description
               : `${item.size_inches}" Cake (${item.layers} Layers) - ${item.recipes?.flavor || 'Standard'}`;
 
-            // --- MATH LOGIC REBUILT ---
-            // 1. Quantity
-            const qty = item.quantity || 1;
+            // Append fillings to description if we found them
+            if (fillingNames.length > 0) {
+              desc += `\n(Includes: ${fillingNames.join(', ')})`;
+            }
 
-            // 2. Extras (Toppings) - Stored in custom_extras
+            // --- MATH LOGIC ---
+            const qty = item.quantity || 1;
+            const dbItemPrice = Number(item.item_price); // Price from DB (Includes Fillings)
+
+            // Extras
             let extrasTotal = 0;
             let extrasList: any[] = [];
             if (item.custom_extras?.addons && Array.isArray(item.custom_extras.addons)) {
@@ -393,34 +418,10 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
               extrasTotal = extrasList.reduce((acc: number, ex: any) => acc + (Number(ex.price) || 0), 0);
             }
 
-            // 3. Item Price from DB (Includes Fillings, Excludes Extras)
-            const dbItemPrice = Number(item.item_price);
-
-            // 4. Calculate Fillings
-            let fillingTotal = 0;
-            let fillingBreakdown: { name: string, price: number }[] = [];
-
-            if (!isDessert && item.fillings && Array.isArray(item.fillings)) {
-              item.fillings.forEach((fid: string) => {
-                // Robust lookup: convert to string/trim to avoid mismatches
-                const found = allFillings.find((f: any) => String(f.id).trim() === String(fid).trim());
-                if (found) {
-                  const price = Number(found.price) || 0;
-                  fillingTotal += price;
-                  fillingBreakdown.push({ name: found.name, price: price });
-                }
-              });
-            }
-
-            // 5. Derived Base Price (DB Price - Fillings)
+            // Calculations
+            // Base Price = Total stored price - filling costs
             const baseUnitPrice = Math.max(0, dbItemPrice - fillingTotal);
-
-            // 6. Line Total (DB Price * Qty) + (Extras * Qty?) 
-            // NOTE: In NewOrderPage, Extras are added to Grand Total separately. 
-            // We assume 'extrasTotal' applies to this line item.
-            // The table shows 'Amount', which usually means (Unit Price + Extras) * Qty
-            // But let's assume 'extrasTotal' is flat fee for the cake group.
-
+            // Line Total = (Item Price * Qty) + Extras
             const lineTotal = (dbItemPrice * qty) + extrasTotal;
 
             return (
@@ -432,13 +433,11 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
 
                   {/* BREAKDOWN BOX */}
                   <View style={styles.breakdownContainer}>
-                    {/* Base Price */}
                     <View style={styles.breakdownRow}>
                       <Text style={styles.breakdownLabel}>Base Price</Text>
                       <Text style={styles.breakdownPrice}>{formatMoney(baseUnitPrice)}</Text>
                     </View>
 
-                    {/* Fillings */}
                     {fillingBreakdown.length > 0 && (
                       <View>
                         <Text style={styles.sectionHeader}>Fillings</Text>
@@ -451,7 +450,6 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
                       </View>
                     )}
 
-                    {/* Extras */}
                     {extrasList.length > 0 && (
                       <View>
                         <Text style={styles.sectionHeader}>Extras & Toppings</Text>
@@ -466,13 +464,9 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
                   </View>
                 </View>
 
-                {/* Qty */}
+                {/* Columns */}
                 <Text style={styles.colQty}>{qty}</Text>
-
-                {/* Unit Price (Shows the Combined Cake Price) */}
                 <Text style={styles.colPrice}>{formatMoney(dbItemPrice)}</Text>
-
-                {/* Line Total */}
                 <Text style={styles.colTotal}>{formatMoney(lineTotal)}</Text>
               </View>
             );

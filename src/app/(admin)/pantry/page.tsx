@@ -285,7 +285,17 @@ interface InvoicePDFProps {
     allFillings?: any[]; // Passed from parent to lookup names
 }
 
+
 const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = [] }) => {
+    if (!order) {
+        return (
+            <Document>
+                <Page size="A4" style={{ justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+                    <Text>No order data available.</Text>
+                </Page>
+            </Document>
+        );
+    }
 
     const formatDate = (dateString: string) => {
         if (!dateString) return '-';
