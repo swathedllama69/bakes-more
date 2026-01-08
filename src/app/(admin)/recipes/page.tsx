@@ -239,7 +239,7 @@ export default function RecipeCreator() {
 
         setEditorTab('ingredients');
 
-        if (activeTab !== 'extras' && activeTab !== 'desserts') {
+        if (activeTab === 'recipes' || activeTab === 'fillings') {
             const table = activeTab === 'recipes' ? 'recipe_ingredients' : 'filling_ingredients';
             const idField = activeTab === 'recipes' ? 'recipe_id' : 'filling_id';
 
