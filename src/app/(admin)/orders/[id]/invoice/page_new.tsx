@@ -8,7 +8,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { PDFViewer } from "@react-pdf/renderer";
 
-// Dynamically import PDF component to avoid SSR issues with @react-pdf/renderer
+// Dynamically import PDF component to avoid SSR issues
 const InvoicePDF = dynamic(() => import("@/components/pdf/InvoicePDF"), {
     ssr: false,
     loading: () => <div className="text-slate-400">Loading PDF Generator...</div>,
@@ -44,13 +44,13 @@ export default function InvoicePage() {
 
             if (orderError) throw orderError;
 
-            // 2. Fetch General Settings (Company Info, etc.)
+            // 2. Fetch General Settings (Company Info)
             const { data: settingsData } = await supabase
                 .from("settings")
                 .select("*")
                 .single();
 
-            // 3. Fetch Account Details (Specifically from app_settings like in OrderDetails)
+            // 3. Fetch Account Details (From App Settings)
             const { data: accData } = await supabase
                 .from("app_settings")
                 .select("value")
@@ -62,8 +62,13 @@ export default function InvoicePage() {
                 .from("fillings")
                 .select("*");
 
+            // DEBUG: Log fillingsData to diagnose why allFillings is empty
+            // eslint-disable-next-line no-console
+            console.log('[DEBUG] fillingsData:', fillingsData);
+
             if (orderData) setOrder(orderData);
             if (settingsData) setSettings(settingsData);
+            // Prioritize app_settings value, fallback to empty string
             if (accData) setAccountDetails(accData.value);
             if (fillingsData) setAllFillings(fillingsData);
 
@@ -74,13 +79,18 @@ export default function InvoicePage() {
         }
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-400">Loading Invoice...</div>;
+
+    if (loading || allFillings.length === 0) {
+        return <div className="min-h-screen flex items-center justify-center text-slate-400">Loading Invoice...</div>;
+    }
     if (!order) return <div className="min-h-screen flex items-center justify-center text-slate-400">Order not found</div>;
 
     // Inject account details into order object for the PDF
+    // We prefer the fetched 'accountDetails' state (from app_settings), 
+    // fallback to order.account_details if exists (legacy)
     const orderWithDetails = {
         ...order,
-        account_details: accountDetails || order.account_details
+        account_details: accountDetails || order.account_details || ""
     };
 
     return (
@@ -95,7 +105,7 @@ export default function InvoicePage() {
                 </div>
             </div>
 
-            {/* PDF Viewer - Full Screen Experience */}
+            {/* PDF Viewer */}
             <div className="flex-1 max-w-5xl mx-auto w-full bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200">
                 <PDFViewer style={{ width: "100%", height: "100%", border: "none" }}>
                     <InvoicePDF

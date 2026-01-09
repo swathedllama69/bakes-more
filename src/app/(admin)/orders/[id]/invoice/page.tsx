@@ -58,9 +58,13 @@ export default function InvoicePage() {
                 .maybeSingle();
 
             // 4. Fetch Fillings (Crucial for PDF breakdown)
-            const { data: fillingsData } = await supabase
+            const { data: fillingsData, error: fillingsError } = await supabase
                 .from("fillings")
                 .select("*");
+
+            if (fillingsError) {
+                console.error("Error fetching fillings:", fillingsError);
+            }
 
             if (orderData) setOrder(orderData);
             if (settingsData) setSettings(settingsData);
@@ -78,6 +82,7 @@ export default function InvoicePage() {
     if (!order) return <div className="min-h-screen flex items-center justify-center text-slate-400">Order not found</div>;
 
     // Inject account details into order object for the PDF
+    // We prioritize the fetched `accountDetails` from `app_settings`
     const orderWithDetails = {
         ...order,
         account_details: accountDetails || order.account_details

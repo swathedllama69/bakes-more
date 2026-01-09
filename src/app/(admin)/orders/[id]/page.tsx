@@ -97,7 +97,7 @@ export default function OrderDetailsPage() {
                 *,
                 order_items (
                     *,
-                    recipes (name, baking_duration_minutes, instructions),
+                    recipes (name, baking_duration_minutes, instructions, selling_price),
                     desserts (name, description, selling_price, cost) 
                 )
             `)
@@ -670,36 +670,39 @@ export default function OrderDetailsPage() {
                                 const name = isDessert ? item.desserts?.name || 'Dessert' : item.recipes?.name || 'Cake';
                                 const desc = isDessert ? item.desserts?.description : '';
 
-                                // Logic: Look up fillings for precise cost calculation
-                                let fillingBreakdown: any[] = [];
-                                let fillingsTotal = 0;
-                                if (!isDessert && item.fillings && Array.isArray(item.fillings)) {
-                                    item.fillings.forEach((fid: string) => {
-                                        const f = allFillings.find(x => x.id === fid);
-                                        if (f) {
-                                            const price = Number(f.price) || 0;
-                                            fillingsTotal += price;
-                                            fillingBreakdown.push({ name: f.name, price: price });
-                                        }
-                                    });
+                                // Calculate basePrice properly from the relations
+                                const basePrice = isDessert
+                                    ? item.desserts?.selling_price || 0
+                                    : item.item_price;
+
+                                let fillingsDisplay = null;
+                                if (!isDessert && item.fillings && Array.isArray(item.fillings) && item.fillings.length > 0) {
+                                    fillingsDisplay = (
+                                        <div className="flex flex-wrap gap-2 mt-1">
+                                            {item.fillings.map((fillId: string, i: number) => {
+                                                const fillDetails = allFillings.find(f => f.id === fillId);
+                                                if (!fillDetails) return null;
+                                                return (
+                                                    <span key={i} className="bg-green-50 text-green-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1">
+                                                        {fillDetails.name}
+                                                        {fillDetails.price > 0 && <span className="text-green-500 ml-1">+{fillDetails.price}</span>}
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                    );
                                 }
 
                                 let extrasList: any[] = [];
                                 let extrasTotal = 0;
-                                if (item.custom_extras && Array.isArray(item.custom_extras.addons)) {
+                                if (item.custom_extras && item.custom_extras.addons && Array.isArray(item.custom_extras.addons)) {
                                     extrasList = item.custom_extras.addons;
+                                    extrasTotal = extrasList.reduce((a, b) => a + (b.price || 0), 0);
                                 } else if (item.custom_extras && item.custom_extras.addons && typeof item.custom_extras.addons === 'object') {
-                                    // Handle case where addons is a single object, not array
+                                    // Handle single object case if needed
                                     extrasList = [item.custom_extras.addons];
-                                } else {
-                                    extrasList = [];
+                                    extrasTotal = (item.custom_extras.addons.price || 0);
                                 }
-                                if (!Array.isArray(extrasList)) extrasList = [];
-                                extrasTotal = extrasList.reduce((a, b) => a + (b.price || 0), 0);
-
-                                // Base Price is Unit Price minus extras minus fillings
-                                const unitPriceTotal = Number(item.item_price);
-                                const basePrice = Math.max(0, unitPriceTotal - fillingsTotal - extrasTotal);
 
                                 return (
                                     <div key={idx} className="p-4 bg-[#FDFBF7] rounded-2xl border border-[#E8ECE9]">
@@ -717,29 +720,23 @@ export default function OrderDetailsPage() {
                                         {!isDessert && (
                                             <div className="text-sm text-slate-500 space-y-1">
                                                 <p>Size: <span className="font-bold text-slate-700">{item.size_inches}" ({item.layers} Layers)</span></p>
+                                                {fillingsDisplay && (
+                                                    <div>
+                                                        <span className="text-xs font-bold uppercase text-slate-400">Fillings:</span>
+                                                        {fillingsDisplay}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
                                         <div className="text-xs text-slate-500 mt-3 pt-3 border-t border-slate-200 space-y-1">
                                             <div className="flex justify-between">
                                                 <span>Base Price:</span>
-                                                <span className="font-bold text-slate-700">₦{basePrice.toLocaleString()}</span>
+                                                <span className="font-bold text-slate-700">₦{Number(basePrice).toLocaleString()}</span>
                                             </div>
 
-                                            {fillingBreakdown.length > 0 && (
-                                                <div className="py-1 border-t border-slate-100 mt-1">
-                                                    <span className="block mb-1 text-slate-400 font-bold uppercase text-[10px]">Fillings</span>
-                                                    {fillingBreakdown.map((f, i) => (
-                                                        <div key={i} className="flex justify-between pl-2 border-l-2 border-slate-200 mb-1">
-                                                            <span>{f.name}</span>
-                                                            <span>+₦{f.price.toLocaleString()}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-
                                             {extrasList.length > 0 && (
-                                                <div className="py-1 border-t border-slate-100 mt-1">
+                                                <div className="py-1">
                                                     <span className="block mb-1 text-slate-400 font-bold uppercase text-[10px]">Add-ons</span>
                                                     {extrasList.map((ex: any, i: number) => (
                                                         <div key={i} className="flex justify-between pl-2 border-l-2 border-slate-200 mb-1">

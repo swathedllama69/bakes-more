@@ -1,13 +1,14 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
 
-// --- FONT REGISTRATION ---
+// --- FONT REGISTRATION (Local Files) ---
+// Loading fonts from public/fonts/ directory matches the files you uploaded
 Font.register({
   family: 'Roboto',
   fonts: [
     { src: '/fonts/Roboto-Regular.ttf', fontWeight: 400 },
-    { src: '/fonts/Roboto-Italic.ttf', fontWeight: 400, fontStyle: 'italic' },
     { src: '/fonts/Roboto-Bold.ttf', fontWeight: 700 },
+    { src: '/fonts/Roboto-Italic.ttf', fontWeight: 400, fontStyle: 'italic' },
     { src: '/fonts/Roboto-BoldItalic.ttf', fontWeight: 700, fontStyle: 'italic' }
   ]
 });
@@ -18,14 +19,20 @@ Font.register({
 });
 
 // --- CONSTANTS ---
-const CURRENCY_SIGN = 'N'; // Hardcoded for safety
+// Use 'N' for Naira currency
+const CURRENCY_SIGN = 'N';
 const BRAND_COLOR = '#B03050';
 const TEXT_DARK = '#1E293B';
 const TEXT_LIGHT = '#64748B';
 
+// --- HARDCODED ACCOUNT DETAILS ---
+const DEFAULT_ACCOUNT_DETAILS = `616423897288
+Moniepoint
+Bakes & More By Hafsaa`;
+
 const styles = StyleSheet.create({
   page: {
-    fontFamily: 'Roboto',
+    fontFamily: 'Roboto', // Using your local Roboto font
     fontSize: 9,
     padding: 30,
     color: TEXT_DARK,
@@ -46,9 +53,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 120, // INCREASED SIZE
-    height: 120,
-    marginRight: 15,
+    width: 110,
+    height: 110,
+    marginRight: 18,
     borderRadius: 8,
     objectFit: 'contain'
   },
@@ -61,7 +68,7 @@ const styles = StyleSheet.create({
   },
   brandSub: {
     fontSize: 14,
-    fontFamily: 'Pacifico',
+    fontFamily: 'Pacifico', // Using your local Pacifico font for fancy text
     color: TEXT_LIGHT,
     marginTop: 4,
   },
@@ -277,8 +284,10 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   footerText: {
-    fontSize: 8,
-    color: '#CBD5E1',
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: 'bold',
+    letterSpacing: 1,
   }
 });
 
@@ -305,6 +314,10 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
 
   const subTotal = (order.total_price || 0) + (order.discount || 0) - (order.tip || 0) - (order.vat_type === 'exclusive' ? (order.vat || 0) : 0);
   const balance = Math.max(0, (order.total_price || 0) - (order.amount_paid || 0));
+  const isPaid = balance <= 0;
+
+  // Determine account details: Use passed details, order details, or hardcoded default
+  const accountDetailsToDisplay = order.account_details || settings?.account_details || DEFAULT_ACCOUNT_DETAILS;
 
   return (
     <Document>
@@ -316,7 +329,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
             {/* Ensure logo.png is in public/logo.png */}
             <Image src="/logo.png" style={styles.logo} />
             <View>
-              <Text style={styles.brandName}>BAKES & MORE</Text>
+              <Text style={styles.brandName}>{settings?.company_name || "BAKES & MORE"}</Text>
               <Text style={styles.brandSub}>By Hafsaa</Text>
               <View style={styles.companyDetails}>
                 <Text style={styles.companyText}>{settings?.company_phone}</Text>
@@ -345,19 +358,19 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
         {/* --- CLIENT INFO --- */}
         <View style={styles.infoGrid}>
           <View style={styles.infoCol}>
-            <Text style={styles.colLabel}>Bill To</Text>
-            <Text style={styles.colText}>{order.customer_name}</Text>
-            <Text style={styles.colSub}>{order.customer_phone}</Text>
-            {order.customer_email && <Text style={styles.colSub}>{order.customer_email}</Text>}
+            <Text style={{ ...styles.colLabel, fontSize: 12 }}>Bill To</Text>
+            <Text style={{ ...styles.colText, fontSize: 13 }}>{order.customer_name}</Text>
+            <Text style={{ ...styles.colSub, fontSize: 11 }}>{order.customer_phone}</Text>
+            {order.customer_email && <Text style={{ ...styles.colSub, fontSize: 11 }}>{order.customer_email}</Text>}
           </View>
           <View style={styles.infoCol}>
-            <Text style={styles.colLabel}>Notes</Text>
-            <Text style={styles.colSub}>{order.notes || 'No specific instructions.'}</Text>
+            <Text style={{ ...styles.colLabel, fontSize: 12 }}>Address</Text>
+            <Text style={{ ...styles.colSub, fontSize: 11 }}>{order.notes || 'No address provided.'}</Text>
           </View>
           <View style={[styles.infoCol, { alignItems: 'flex-end', justifyContent: 'center' }]}>
-            <View style={{ backgroundColor: balance > 0 ? '#FEF2F2' : '#F0FDF4', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: balance > 0 ? '#FECACA' : '#BBF7D0' }}>
-              <Text style={{ fontSize: 10, fontWeight: 'bold', color: balance > 0 ? '#B91C1C' : '#15803D' }}>
-                {balance > 0 ? 'UNPAID' : 'PAID'}
+            <View style={{ backgroundColor: !isPaid ? '#FEF2F2' : '#F0FDF4', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: !isPaid ? '#FECACA' : '#BBF7D0' }}>
+              <Text style={{ fontSize: 10, fontWeight: 'bold', color: !isPaid ? '#B91C1C' : '#15803D' }}>
+                {!isPaid ? 'UNPAID' : 'PAID'}
               </Text>
             </View>
           </View>
@@ -376,34 +389,40 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
             const isDessert = !!item.dessert_id;
             const name = isDessert ? item.desserts?.name || 'Dessert' : item.recipes?.name || 'Custom Cake';
 
-            // 1. Resolve Fillings List first to append names to description
-            let fillingNames: string[] = [];
+            // --- FILLINGS LOGIC ---
             let fillingTotal = 0;
             let fillingBreakdown: { name: string, price: number }[] = [];
 
-            if (!isDessert && item.fillings && Array.isArray(item.fillings)) {
+            // Explicit Count of Fillings
+            const numFillings = (item.fillings && Array.isArray(item.fillings)) ? item.fillings.length : 0;
+
+            if (!isDessert && numFillings > 0) {
               item.fillings.forEach((fid: string | any) => {
-                // Handle ID matching safely (convert to string)
-                const idToFind = typeof fid === 'object' ? fid.id : fid;
-                const found = allFillings.find((f: any) => String(f.id) == String(idToFind));
+                const idToFind = typeof fid === 'object' ? String(fid.id) : String(fid);
+                let found = null;
+
+                if (allFillings && allFillings.length > 0) {
+                  found = allFillings.find((f: any) => String(f.id) === idToFind);
+                }
 
                 if (found) {
-                  fillingNames.push(found.name);
                   const price = Number(found.price) || 0;
                   fillingTotal += price;
                   fillingBreakdown.push({ name: found.name, price });
                 }
+                // We purposefully do NOT add "Unknown Filling" lines anymore to keep it clean.
               });
             }
 
-            // 2. Build Description
+            // --- BUILD DESCRIPTION ---
             let desc = isDessert
               ? item.desserts?.description
               : `${item.size_inches}" Cake (${item.layers} Layers) - ${item.recipes?.flavor || 'Standard'}`;
 
-            // Append fillings to description if we found them
-            if (fillingNames.length > 0) {
-              desc += `\n(Includes: ${fillingNames.join(', ')})`;
+            // Show Count Summary in Description
+            if (numFillings > 0) {
+              const plural = numFillings === 1 ? 'Filling' : 'Fillings';
+              desc += `\n(Includes: ${numFillings} ${plural})`;
             }
 
             // --- MATH LOGIC ---
@@ -418,10 +437,10 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
               extrasTotal = extrasList.reduce((acc: number, ex: any) => acc + (Number(ex.price) || 0), 0);
             }
 
-            // Calculations
-            // Base Price = Total stored price - filling costs
+            // --- BASE PRICE CALCULATION ---
             const baseUnitPrice = Math.max(0, dbItemPrice - fillingTotal);
-            // Line Total = (Item Price * Qty) + Extras
+
+            // Line Total
             const lineTotal = (dbItemPrice * qty) + extrasTotal;
 
             return (
@@ -438,6 +457,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
                       <Text style={styles.breakdownPrice}>{formatMoney(baseUnitPrice)}</Text>
                     </View>
 
+                    {/* Filling Breakdown - Shows price of each filling */}
                     {fillingBreakdown.length > 0 && (
                       <View>
                         <Text style={styles.sectionHeader}>Fillings</Text>
@@ -450,6 +470,7 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
                       </View>
                     )}
 
+                    {/* Extras Breakdown */}
                     {extrasList.length > 0 && (
                       <View>
                         <Text style={styles.sectionHeader}>Extras & Toppings</Text>
@@ -476,10 +497,26 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
         {/* --- FOOTER & TOTALS --- */}
         <View style={styles.footerSection}>
           <View style={styles.paymentBox}>
-            <Text style={styles.colLabel}>Payment Details</Text>
-            <Text style={{ fontSize: 9, color: TEXT_DARK, lineHeight: 1.5, fontFamily: 'Roboto' }}>
-              {order.account_details || "Please contact us for payment instructions."}
-            </Text>
+            {/* CONDITIONAL PAYMENT DETAILS DISPLAY */}
+            {!isPaid ? (
+              <View>
+                <Text style={styles.colLabel}>Payment Details</Text>
+                {/* INCREASED FONT SIZE (12) & BLACK COLOR */}
+                <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#000000', lineHeight: 1.5, fontFamily: 'Roboto' }}>
+                  {accountDetailsToDisplay}
+                </Text>
+                <Text style={{ fontSize: 9, color: TEXT_LIGHT, marginTop: 4 }}>
+                  Please use Order #{order.id.slice(0, 8).toUpperCase()} as reference.
+                </Text>
+              </View>
+            ) : (
+              <View style={{ padding: 10, backgroundColor: '#F0FDF4', borderRadius: 6, borderLeftWidth: 3, borderLeftColor: '#16A34A' }}>
+                <Text style={{ fontSize: 9, color: '#15803D', fontWeight: 'bold', marginBottom: 2 }}>PAYMENT COMPLETE</Text>
+                <Text style={{ fontSize: 8, color: '#16A34A' }}>
+                  Thank you for your payment!
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.totalsBox}>
@@ -521,11 +558,11 @@ const InvoicePDF: React.FC<InvoicePDFProps> = ({ order, settings, allFillings = 
               </View>
             )}
 
-            <View style={{ marginTop: 8, padding: 8, backgroundColor: balance > 0 ? '#FEF2F2' : '#F0FDF4', borderRadius: 4, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ fontSize: 9, fontWeight: 'bold', color: balance > 0 ? '#B91C1C' : '#15803D' }}>
-                {balance > 0 ? 'BALANCE DUE' : 'PAID IN FULL'}
+            <View style={{ marginTop: 8, padding: 8, backgroundColor: !isPaid ? '#FEF2F2' : '#F0FDF4', borderRadius: 4, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 9, fontWeight: 'bold', color: !isPaid ? '#B91C1C' : '#15803D' }}>
+                {!isPaid ? 'BALANCE DUE' : 'PAID IN FULL'}
               </Text>
-              <Text style={{ fontSize: 11, fontWeight: 'bold', color: balance > 0 ? '#B91C1C' : '#15803D' }}>
+              <Text style={{ fontSize: 11, fontWeight: 'bold', color: !isPaid ? '#B91C1C' : '#15803D' }}>
                 {formatMoney(balance)}
               </Text>
             </View>

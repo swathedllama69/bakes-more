@@ -740,13 +740,16 @@ export default function PantryPage() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unit</label>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={newIngredient.unit}
                                         onChange={e => setNewIngredient({ ...newIngredient, unit: e.target.value })}
                                         className="w-full p-3 bg-[#FAFAFA] border border-[#E8ECE9] rounded-xl focus:outline-none focus:border-[#B03050]"
-                                        placeholder="g, ml, pcs"
-                                    />
+                                    >
+                                        <option value="cup">Cup</option>
+                                        <option value="g">Grams (g)</option>
+                                        <option value="ml">Milliliters (ml)</option>
+                                        <option value="pcs">Pieces (pcs)</option>
+                                    </select>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -842,12 +845,16 @@ export default function PantryPage() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Unit</label>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={editingIngredient.unit}
                                         onChange={e => setEditingIngredient({ ...editingIngredient, unit: e.target.value })}
                                         className="w-full p-3 bg-[#FAFAFA] border border-[#E8ECE9] rounded-xl focus:outline-none focus:border-[#B03050]"
-                                    />
+                                    >
+                                        <option value="cup">Cup</option>
+                                        <option value="g">Grams (g)</option>
+                                        <option value="ml">Milliliters (ml)</option>
+                                        <option value="pcs">Pieces (pcs)</option>
+                                    </select>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">

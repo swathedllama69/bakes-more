@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Plus, Trash2, Save, ChefHat, Search, ArrowRight, AlertCircle, FileText, List, X, Image as ImageIcon, Upload } from 'lucide-react';
+import { Plus, Trash2, Save, ChefHat, Search, ArrowRight, AlertCircle, FileText, List, X, Image as ImageIcon, Upload, CheckCircle } from 'lucide-react';
 import ConfirmationModal from "@/components/ui/ConfirmationModal";
 
 export default function RecipeCreator() {
@@ -145,7 +145,8 @@ export default function RecipeCreator() {
 
     useEffect(() => {
         if (notification) {
-            const timer = setTimeout(() => setNotification(null), 3000);
+            // Updated to 2000ms (2 seconds) as requested
+            const timer = setTimeout(() => setNotification(null), 2000);
             return () => clearTimeout(timer);
         }
     }, [notification]);
@@ -502,6 +503,27 @@ export default function RecipeCreator() {
 
     return (
         <div className="min-h-screen p-8 font-sans text-slate-800 bg-[#FDFBF7]">
+
+            {/* --- NOTIFICATION TOAST --- */}
+            {notification && (
+                <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-xl border animate-in slide-in-from-top-2 fade-in duration-300 ${notification.type === 'success'
+                    ? 'bg-green-600 text-white border-green-700'
+                    : 'bg-red-600 text-white border-red-700'
+                    }`}>
+                    {notification.type === 'success' ? (
+                        <CheckCircle className="w-6 h-6 text-white" />
+                    ) : (
+                        <AlertCircle className="w-6 h-6 text-white" />
+                    )}
+                    <div>
+                        <h4 className="font-bold text-sm uppercase tracking-wider">{notification.type === 'success' ? 'Success' : 'Error'}</h4>
+                        <p className="font-medium text-sm">{notification.message}</p>
+                    </div>
+                    <button onClick={() => setNotification(null)} className="ml-2 text-white/80 hover:text-white">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
 
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
